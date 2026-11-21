@@ -15,6 +15,7 @@ export function checkInventory(files, readPkg = () => ({})) {
   const errors = [];
   for (const need of REQUIRED) if (!files.includes(need)) errors.push(`missing ${need}`);
   for (const f of files) {
+    if (/[^ -~]/.test(f)) errors.push(`non-ASCII or control characters in path: ${JSON.stringify(f)} (refused: homoglyph names could evade guards)`);
     if (f.split('/').includes('node_modules')) errors.push(`node_modules present: ${f} (zero dependencies; vendored files are not inventoried)`);
     if (f.split('/').some(seg => LICENSE_NAME.test(seg))) errors.push(`license file present: ${f} (no license without owner decision)`);
   }

@@ -24,17 +24,20 @@ export function checkRules(rules) {
     if (r.criteriaStatus !== 'Proposed') errors.push(`${w}: criteriaStatus must be Proposed (nothing is frozen)`);
     if (typeof r.title !== 'string' || !r.title) errors.push(`${w}: missing title`);
     if (!Array.isArray(r.crossReferences)) errors.push(`${w}: crossReferences must be an array`);
-    for (const [k, v] of Object.entries(r)) if (COMPLIANCE_WORDING.test(k) || hasLegalWording(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
+    for (const [k, v] of Object.entries(r)) if (hit(k) || hasLegalWording(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
   }
   return errors;
 }
 
 // Best-effort denylist, NOT proof of absence: it scans every string at any depth (also object keys) but only knows listed terms.
+// Text is NFKC-normalised and format/zero-width/control characters are removed before matching; cross-script homoglyphs are not folded.
+const fold = s => s.normalize('NFKC').replace(new RegExp('['+String.fromCharCode(92)+'p{Cf}'+String.fromCharCode(92)+'p{Cc}]','gu'), '');
+const hit = s => COMPLIANCE_WORDING.test(s) || COMPLIANCE_WORDING.test(fold(s));
 function hasLegalWording(v, depth = 0) {
   if (depth > 20) return true; // too deep to examine: fail closed
-  if (typeof v === 'string') return COMPLIANCE_WORDING.test(v);
+  if (typeof v === 'string') return hit(v);
   if (Array.isArray(v)) return v.some(x => hasLegalWording(x, depth + 1));
-  if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => COMPLIANCE_WORDING.test(k) || hasLegalWording(x, depth + 1));
+  if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => hit(k) || hasLegalWording(x, depth + 1));
   return false;
 }
 

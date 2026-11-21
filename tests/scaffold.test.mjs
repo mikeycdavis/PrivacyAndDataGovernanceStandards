@@ -150,3 +150,11 @@ test('top-level keys are scanned; node_modules at any depth is refused', () => {
   const d = mkdtempSync(j(tmpdir(), 'pdg-')); mkdirSync(j(d, 'node_modules'), { recursive: true }); wf(j(d, 'node_modules', 'invalid.json'), '{"rules":[{"id":"bad"}]}');
   assert.throws(() => loadCatalog(d));
 });
+
+test('unicode-obfuscated legal wording, non-ASCII paths and nested .git are refused', () => {
+  const zw = String.fromCharCode(0x200b), sh = String.fromCharCode(0xad), fw = String.fromCharCode(0xff23);
+  for (const t of ['Compli' + zw + 'ant', 'Compli' + sh + 'ant', fw + 'ompliant']) assert.ok(checkRules([{ ...goodRule, title: t }]).length > 0, JSON.stringify(t));
+  assert.ok(checkInventory([...REQUIRED, 'LICENS' + String.fromCharCode(0x415)]).some(e => /non-ASCII/.test(e)));
+  const d = mkdtempSync(j(tmpdir(), 'pdg-')); mkdirSync(j(d, 'x', '.git'), { recursive: true }); wf(j(d, 'x', '.git', 'LICENSE'), 'x'); wf(j(d, 'ok.txt'), 'x');
+  assert.ok(listFiles(d).includes('x/.git/LICENSE'));
+});

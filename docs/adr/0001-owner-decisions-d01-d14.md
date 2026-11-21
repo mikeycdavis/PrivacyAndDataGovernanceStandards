@@ -33,7 +33,7 @@ The SoftwareTesting core schema is **not frozen**: `SoftwareTestingStandards` PR
    a `pdg` extension namespace and never redefine a shared field.
 3. The PDG envelope is versioned `0.1.0-proposed` and is **not frozen**. Field-level alignment is re-checked when the SoftwareTesting schema freezes;
    a mismatch then is a PDG change, not a silent drift.
-4. `live-platform` is not a legal surface in v1; an envelope declaring it is refused.
+4. `live-platform` is not a legal surface in v1; an envelope declaring it is to be refused (enforced by the evaluator arriving in the first-slice PR; no envelope check exists in the scaffold).
 
 ## Held under every decision
 
