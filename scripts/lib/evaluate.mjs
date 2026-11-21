@@ -128,7 +128,7 @@ export function evaluate(doc, opts = {}) {
   const now = isObj(opts) && 'now' in opts ? opts.now : new Date().toISOString().slice(0, 19) + 'Z';
   if (!validDate(now)) return { gate0: 'evaluation time must be an ISO 8601 UTC timestamp', verdict: null, results: [], limitations: LIMITATIONS };
   const g = gate0(doc);
-  if (g) return { gate0: g, verdict: null, results: [], limitations: LIMITATIONS };
+  if (g) return { gate0: g, verdict: null, results: [], limitations: LIMITATIONS, evaluatedAt: now };
   const nowMs = Date.parse(now);
   const live = iso => validDate(iso) && Date.parse(iso) >= nowMs;
 
@@ -182,6 +182,7 @@ export function evaluate(doc, opts = {}) {
     if (!bad) { if (seen.has(e.id)) bad = true; seen.add(e.id); }
     if (!bad && (!RULE_IDS.includes(e.ruleId) || !datasetIds.has(e.datasetRef))) bad = true;
     if (bad) R['pdg-evidence.envelope-valid'].raise('fail', `/evidence/${i}`);
+    else if (e.result === 'contradicts' && Date.parse(e.retrievedAt) <= nowMs && live(e.validUntil)) R[e.ruleId].raise('fail', `/evidence/${i}`); // current contradicting evidence is a finding even when unreferenced
   });
 
   if (datasets.length === 0) noData();
@@ -225,15 +226,15 @@ export function evaluate(doc, opts = {}) {
   const results = RULE_IDS.map(id => R[id].out());
   if (unknownApplicability) {
     const bad = results.filter(x => x.ruleId.startsWith('pdg-evidence.') && x.status !== 'pass');
-    return { gate0: null, verdict: bad.length ? 'FAIL' : 'INDETERMINATE', results: bad, limitations: LIMITATIONS, note: 'applicability not declared' };
+    return { gate0: null, verdict: bad.length ? 'FAIL' : 'INDETERMINATE', results: bad, limitations: LIMITATIONS, evaluatedAt: now, note: 'applicability not declared' };
   }
   if (naOk !== null) {
     const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
     const contradiction = datasets.length > 0;
-    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS,
+    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS, evaluatedAt: now,
       note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : 'not-applicable on a declared and attested basis' };
   }
   const verdict = results.some(r => r.status === 'fail') ? 'FAIL'
     : results.some(r => r.status === 'not-evaluated') ? 'REVIEW_REQUIRED' : 'PASS';
-  return { gate0: null, verdict, results, limitations: LIMITATIONS };
+  return { gate0: null, verdict, results, limitations: LIMITATIONS, evaluatedAt: now };
 }

@@ -416,3 +416,13 @@ test('unbounded expiry windows and periodic placeholder hashes do not reach PASS
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
   assert.ok(near === 'pass' || near === 'fail');
 });
+
+test('a current contradicting envelope fails its rule even when unreferenced; reports state evaluatedAt', () => {
+  const d = base(); const c = structuredClone(d.evidence[0]); c.id = 'E9'; c.result = 'contradicts'; d.evidence.push(c);
+  const r = run(d);
+  assert.equal(status(r, c.ruleId), 'fail');
+  assert.equal(r.verdict, 'FAIL');
+  assert.equal(r.evaluatedAt, NOW);
+  const old = base(); const o = structuredClone(old.evidence[0]); o.id = 'E9'; o.result = 'contradicts'; o.validUntil = '2025-02-01T00:00:00Z'; o.retrievedAt = '2025-01-01T00:00:00Z'; old.evidence.push(o);
+  assert.equal(run(old).verdict, 'PASS');
+});
