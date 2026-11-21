@@ -1,6 +1,6 @@
 {
   "schema": "pdg-source-provenance/0.1.0-proposed",
-  "note": "Provenance is never normative. Only OPENED sources may be cited by a required or forbidden rule, and none does yet. Full ledger: evidence-1 source ledger.",
+  "note": "Provenance is never normative. Policy: only OPENED sources may be cited by a required or forbidden rule. This is NOT yet enforced by any check (rules carry no source link yet); it is vacuously true while there are no rules, and a check must be added before rules arrive. Full ledger: evidence-1 source ledger.",
   "sources": [
     { "id": "S1", "title": "NIST Privacy Framework: A Tool for Improving Privacy through Enterprise Risk Management, Version 1.0", "publisher": "NIST", "version": "1.0", "date": "2020-01-16", "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.01162020.pdf", "status": "OPENED", "retrieved": "2026-11-20", "sha256": "58e1f2373e1c8a5782f7ddfce677fa9fc15e2d920ec0ab97ee754697e91bc2f0", "scope": "Privacy risk management Core; scoping and terminology" },
     { "id": "S2", "title": "NISTIR 8062 An Introduction to Privacy Engineering and Risk Management in Federal Systems", "publisher": "NIST", "version": "IR 8062", "date": "2017-01", "url": "https://nvlpubs.nist.gov/nistpubs/ir/2017/NIST.IR.8062.pdf", "status": "OPENED", "retrieved": "2026-11-20", "sha256": "bc07d208aaab554a106da95686ff347c9759ae1c502ae77d98a1fa2cf3ef4391", "scope": "Privacy-risk vocabulary" },
