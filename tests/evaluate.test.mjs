@@ -396,7 +396,7 @@ test('placeholder hashes and effectively-indefinite finite periods do not reach 
   assert.notEqual(run(d).verdict, 'PASS');
   d = base(); d.evidence.forEach(e => { e.retention.hash = 'a'.repeat(64); });
   assert.notEqual(run(d).verdict, 'PASS');
-  for (const p of ['P99999999Y', 'P101Y', 'P40000D', 'P6000W']) {
+  for (const p of ['P99999999Y', 'P101Y', 'P40000D', 'P6000W', 'PT999999999999999999999999S', 'PT999999999H', 'PT99999999999M', 'P100YT9999999H', 'P99999D'+'T1H']) {
     d = base(); d.datasets[0].retention.period = p;
     assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail', p);
   }

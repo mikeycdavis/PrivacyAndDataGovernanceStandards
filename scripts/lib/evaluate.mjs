@@ -14,7 +14,8 @@ const MAX_DAYS = 36500;
 function periodDays(p) {
   if (WEEKS.test(p)) return Number(p.slice(1, -1)) * 7;
   const m = DURATION.exec(p);
-  return Number(m[1] ? m[1].slice(0, -1) : 0) * 365 + Number(m[2] ? m[2].slice(0, -1) : 0) * 31 + Number(m[3] ? m[3].slice(0, -1) : 0);
+  return Number(m[1] ? m[1].slice(0, -1) : 0) * 365 + Number(m[2] ? m[2].slice(0, -1) : 0) * 31 + Number(m[3] ? m[3].slice(0, -1) : 0)
+    + Number(m[5] ? m[5].slice(0, -1) : 0) / 24 + Number(m[6] ? m[6].slice(0, -1) : 0) / 1440 + Number(m[7] ? m[7].slice(0, -1) : 0) / 86400;
 }
 const durationOk = p => (WEEKS.test(p) || DURATION.test(p)) && /[1-9]/.test(p) && periodDays(p) <= MAX_DAYS;
 const DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
