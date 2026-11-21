@@ -118,3 +118,28 @@ test('non-string rule ids are rejected; legal-regime names and conclusion verbs 
   }
   assert.deepEqual(checkRules([{ ...goodRule, rationale: 'Legal categories are overlays, not defaults; this is not a legal finding.' }]), []);
 });
+
+// ---- independent review round 2 on PR 3 ----
+import { mkdtempSync, mkdirSync, writeFileSync as wf } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as j } from 'node:path';
+
+test('legal wording is refused at any depth and for more regimes and verbs', () => {
+  assert.ok(checkRules([{ ...goodRule, crossReferences: ['System complies with GDPR'] }]).length > 0);
+  assert.ok(checkRules([{ ...goodRule, x: { a: ['is GDPR compliant'] } }]).length > 0);
+  assert.ok(checkRules([{ ...goodRule, x: { 'Meets Colorado Privacy Act': 1 } }]).length > 0);
+  for (const t of ['Meets UK DPA 2018', 'certified', 'adheres to PIPL', 'in line with NIS2']) assert.ok(checkRules([{ ...goodRule, title: t }]).length > 0, t);
+});
+
+test('license guard catches names containing license/copyright/notice anywhere', () => {
+  for (const f of ['MIT-LICENSE', 'LICENSE txt', 'COPYRIGHT', 'NOTICE', 'a/NOTICE.md', 'x-license.md']) assert.ok(checkInventory([...REQUIRED, f]).some(e => /license file/.test(e)), f);
+});
+
+test('catalog loader fails closed on nested, mis-cased, non-json files and null documents', () => {
+  const mk = (rel, body) => { const d = mkdtempSync(j(tmpdir(), 'pdg-')); const p = j(d, rel); mkdirSync(j(p, '..'), { recursive: true }); wf(p, body); return d; };
+  assert.throws(() => loadCatalog(mk('sub/a.json', '{"rules":[]}')));
+  assert.throws(() => loadCatalog(mk('A.JSON', '{"rules":[]}')));
+  assert.throws(() => loadCatalog(mk('a.jsonc', '{"rules":[]}')));
+  assert.throws(() => loadCatalog(mk('a.json', 'null')), /rules must be an array/);
+  assert.deepEqual(loadCatalog(mk('a.json', '{"rules":[]}')), []);
+});

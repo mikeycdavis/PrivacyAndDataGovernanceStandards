@@ -1,10 +1,12 @@
 // Deterministic inventory: requires planned root files and forbids a LICENSE file (owner decision).
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { listFiles, readJson, isMain, report } from './lib/util.mjs';
 
 export const REQUIRED = ['README.md', 'VERSION', 'CHANGELOG.md', 'package.json', 'docs/charter.md',
   'docs/adr/0001-owner-decisions-d01-d14.md', 'docs/adr/0002-rule-id-grammar.md'];
 
-const LICENSE_NAME = /^((un)?licen[cs]es?|copying)([._-].*)?$/i;
+const LICENSE_NAME = /licen[cs]e|copying|copyright|^notice([._-].*)?$|^patents?([._-].*)?$/i;
 
 export function checkPackageLicense(pkg, path) {
   return pkg && typeof pkg === 'object' && ('license' in pkg || 'licenses' in pkg) ? [`${path} declares a license field (no license without owner decision)`] : [];
@@ -20,4 +22,10 @@ export function checkInventory(files, readPkg = () => ({})) {
   return errors;
 }
 
-if (isMain(import.meta.url)) report(checkInventory(listFiles('.'), readJson), 'inventory ok');
+if (isMain(import.meta.url)) {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  process.chdir(root);
+  const errors = checkInventory(listFiles('.'), readJson);
+  if (existsSync('node_modules')) errors.push('node_modules present: this pack has zero dependencies and vendored files are not inventoried');
+  report(errors, 'inventory ok');
+}
