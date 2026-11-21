@@ -168,3 +168,8 @@ test('document-level catalog keys are refused; _file name is not scanned', () =>
   assert.deepEqual(checkRules([{ ...goodRule, _file: 'meets.json' }]), []);
   assert.ok(checkRules([{ ...goodRule, title: 'in  line  with x' }]).length > 0);
 });
+
+test('a source _file key is refused as reserved', () => {
+  const d = mkdtempSync(j(tmpdir(), 'pdg-')); wf(j(d, 'a.json'), JSON.stringify({ rules: [{ ...goodRule, _file: { claim: 'GDPR compliant' } }] }));
+  assert.throws(() => loadCatalog(d), /reserved/);
+});

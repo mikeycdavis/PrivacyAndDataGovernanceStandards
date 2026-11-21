@@ -52,6 +52,7 @@ export function loadCatalog(dir = 'rules') {
     if (!doc || typeof doc !== 'object' || !Array.isArray(doc.rules)) throw new Error(dir + '/' + f + ': rules must be an array');
     for (const k of Object.keys(doc)) if (k !== 'rules' && k !== 'schema') throw new Error(dir + '/' + f + ': unknown document-level key (only schema and rules are allowed)');
     if ('schema' in doc && (typeof doc.schema !== 'string' || hit(doc.schema))) throw new Error(dir + '/' + f + ': schema must be a plain string without legal wording');
+    for (const r of doc.rules) if (r && typeof r === 'object' && '_file' in r) throw new Error(dir + '/' + f + ': _file is a reserved key');
     return doc.rules.map(r => ({ ...r, _file: f }));
   });
 }
