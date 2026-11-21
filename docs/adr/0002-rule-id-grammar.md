@@ -17,4 +17,4 @@ this grammar is **unverified**; this repository enforces its own grammar in `scr
 
 ## Consequences
 
-Meta-tests (tests/catalog.test.mjs) fail on an ID outside the grammar, an unknown domain, or a duplicate ID.
+Meta-tests (tests/scaffold.test.mjs) fail on an ID outside the grammar, an unknown domain, or a duplicate ID.
