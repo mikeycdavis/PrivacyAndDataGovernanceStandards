@@ -47,5 +47,5 @@ adopter modification; merge, ready-for-review, release, tag, license; live accou
 | D-15 | AIStandards owns privacy controls for prompts, traces and eval sets (its standard 07). PDG owns the generic lifecycle and evidence contract. Reciprocal cross-references are added **without changing AI behavior**. PDG rules never restate AIStandards `privacy.*` rules. |
 | D-16 | Android owns platform-specific SDK and permission inventories. PDG owns the shared data-inventory contract that Android extends (extension, not redefinition). Apple and Azure follow the same pattern. |
 
-Consequence in this repository: the PDG side of the cross-references is recorded here (`crossReferences` entries on rules and the ownership map).
+Consequence in this repository: the PDG side of the cross-references will be recorded here as `crossReferences` entries on rules (rules arrive in a later PR) and in the ownership map (currently in the evidence folder, not yet in this repository).
 The AIStandards and AndroidDevelopmentStandards side lives in those repositories and is **not edited from here**; it is tracked as a follow-up item in each owner's backlog.

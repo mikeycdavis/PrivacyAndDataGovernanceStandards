@@ -13,6 +13,8 @@ export function checkProvenance(doc) {
     for (const k of ['id', 'title', 'publisher', 'url', 'status', 'retrieved']) {
       if (typeof s[k] !== 'string' || !s[k]) errors.push(`${where}: missing ${k}`);
     }
+    if (typeof s.scope !== 'string' || !s.scope) errors.push(`${where}: missing scope`);
+    if (!(typeof s.version === 'string' && s.version) && !(typeof s.date === 'string' && s.date)) errors.push(`${where}: missing version or date`);
     if (seen.has(s.id)) errors.push(`${where}: duplicate id`);
     seen.add(s.id);
     if (!STATUSES.includes(s.status)) errors.push(`${where}: unknown status ${s.status}`);

@@ -6,7 +6,7 @@ export const DOMAINS = ['pdg-inventory', 'pdg-purpose', 'pdg-basis', 'pdg-lifecy
 export const ID_RE = /^(pdg-[a-z][a-z0-9]*)\.([a-z][a-z0-9]*(-[a-z0-9]+)*)$/;
 export const LEVELS = ['required', 'recommended', 'optional', 'forbidden'];
 export const ASSURANCE = ['full', 'partial', 'none'];
-const COMPLIANCE_WORDING = /\b(compliant with|gdpr[- ]compliant|ccpa[- ]compliant|hipaa[- ]compliant)\b/i;
+const COMPLIANCE_WORDING = /compl(y|ies|ied|iant|iance)|satisf(y|ies|ied) (the )?(gdpr|ccpa|hipaa|law|legal|regulat)|legally (valid|sufficient)/i;
 
 export function checkRules(rules) {
   const errors = [];
@@ -23,7 +23,7 @@ export function checkRules(rules) {
     if (r.criteriaStatus !== 'Proposed') errors.push(`${w}: criteriaStatus must be Proposed (nothing is frozen)`);
     if (typeof r.title !== 'string' || !r.title) errors.push(`${w}: missing title`);
     if (!Array.isArray(r.crossReferences)) errors.push(`${w}: crossReferences must be an array`);
-    if (COMPLIANCE_WORDING.test(`${r.title} ${r.rationale || ''}`)) errors.push(`${w}: legal-compliance wording is not permitted`);
+    for (const [k, v] of Object.entries(r)) if (typeof v === 'string' && COMPLIANCE_WORDING.test(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
   }
   return errors;
 }

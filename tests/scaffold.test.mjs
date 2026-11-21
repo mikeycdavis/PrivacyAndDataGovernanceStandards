@@ -56,7 +56,7 @@ test('catalog: shipped catalog is valid and never reuses another pack namespace'
 });
 
 test('inventory: shipped tree passes; missing file and license are refused', () => {
-  assert.deepEqual(checkInventory(listFiles('.')), []);
+  assert.deepEqual(checkInventory(listFiles('.'), readJson), []);
   assert.ok(checkInventory(REQUIRED.filter(f => f !== 'VERSION')).some(e => /missing VERSION/.test(e)));
   assert.ok(checkInventory([...REQUIRED, 'LICENSE']).some(e => /license file present/.test(e)));
   assert.ok(checkInventory([...REQUIRED, 'docs/COPYING.txt']).some(e => /license file present/.test(e)));
@@ -72,9 +72,9 @@ test('license guard catches variants and directories, and a package.json license
   for (const f of ['LICENSE-MIT', 'LICENSE_APACHE', 'UNLICENSE', 'licenses/MIT.txt', 'LICENCE.md', 'docs/Copying']) {
     assert.ok(checkInventory([...REQUIRED, f]).some(e => /license file present/.test(e)), f);
   }
-  assert.ok(checkInventory(REQUIRED, { license: 'MIT' }).some(e => /license/.test(e)));
-  assert.ok(checkInventory(REQUIRED, { licenses: [] }).some(e => /license/.test(e)));
-  assert.deepEqual(checkInventory(REQUIRED, {}), []);
+  assert.ok(checkInventory([...REQUIRED, 'tools/package.json'], () => ({ license: 'MIT' })).some(e => /license/.test(e)));
+  assert.ok(checkInventory(REQUIRED, () => ({ licenses: [] })).some(e => /license/.test(e)));
+  assert.deepEqual(checkInventory(REQUIRED, () => ({})), []);
 });
 test('VERSION file matches package.json and no dependency fields exist', () => {
   assert.equal(readFileSync('VERSION', 'utf8').trim(), readJson('package.json').version);
@@ -86,4 +86,25 @@ test('provenance: non-object source entries are reported, not thrown', () => {
 test('ADR 0001 does not contradict itself about D-15 and D-16', () => {
   const t = readFileSync('docs/adr/0001-owner-decisions-d01-d14.md', 'utf8');
   assert.ok(!/not yet decided/i.test(t));
+});
+
+// ---- Codex review of PR 3 head 707c1b8 ----
+import { checkPackageLicense } from '../scripts/check-inventory.mjs';
+test('legal-conclusion wording is refused in any string field of a rule', () => {
+  for (const t of ['System complies with GDPR', 'Ensures CCPA compliance', 'Legally compliant processing', 'This satisfies HIPAA requirements']) {
+    assert.ok(checkRules([{ ...goodRule, title: t }]).length > 0, t);
+    assert.ok(checkRules([{ ...goodRule, rationale: t }]).length > 0, t);
+    assert.ok(checkRules([{ ...goodRule, notes: t }]).length > 0, t);
+  }
+  assert.deepEqual(checkRules([goodRule]), []);
+});
+test('provenance requires scope and a version or date', () => {
+  const s = { id: 'X', title: 't', publisher: 'p', url: 'https://x', status: 'OPENED', retrieved: '2026-11-20', sha256: 'a'.repeat(64) };
+  assert.ok(checkProvenance({ sources: [s] }).length > 0);
+  assert.ok(checkProvenance({ sources: [{ ...s, scope: 'sc' }] }).length > 0);
+  assert.deepEqual(checkProvenance({ sources: [{ ...s, scope: 'sc', date: '2020' }] }), []);
+});
+test('every package.json in the tree is checked for license fields, including nested ones', () => {
+  assert.ok(checkPackageLicense({ license: 'MIT' }, 'tools/package.json').length > 0);
+  for (const f of listFiles('.').filter(f => f.split('/').pop() === 'package.json')) assert.deepEqual(checkPackageLicense(readJson(f), f), []);
 });
