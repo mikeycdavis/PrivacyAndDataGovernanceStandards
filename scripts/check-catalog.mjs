@@ -6,14 +6,14 @@ export const DOMAINS = ['pdg-inventory', 'pdg-purpose', 'pdg-basis', 'pdg-lifecy
 export const ID_RE = /^(pdg-[a-z][a-z0-9]*)\.([a-z][a-z0-9]*(-[a-z0-9]+)*)$/;
 export const LEVELS = ['required', 'recommended', 'optional', 'forbidden'];
 export const ASSURANCE = ['full', 'partial', 'none'];
-const COMPLIANCE_WORDING = /compl(y|ies|ied|iant|iance)|satisf(y|ies|ied) (the )?(gdpr|ccpa|hipaa|law|legal|regulat)|legally (valid|sufficient)/i;
+const COMPLIANCE_WORDING = /compl(y|ies|ied|iant|iance)|conform|satisf|lawful|legally|permitted by law|\b(gdpr|ccpa|cpra|hipaa|lgpd|pipeda|pdpa|coppa|ferpa|glba|pci|sox)\b/i;
 
 export function checkRules(rules) {
   const errors = [];
   const seen = new Set();
   for (const r of rules) {
     const w = `${r && r._file ? r._file + ': ' : ''}${r && r.id}`;
-    const m = ID_RE.exec((r && r.id) || '');
+    const m = typeof (r && r.id) === 'string' ? ID_RE.exec(r.id) : null;
     if (!m) { errors.push(`${w}: id outside pdg-* grammar`); continue; }
     if (!DOMAINS.includes(m[1])) errors.push(`${w}: unknown domain ${m[1]}`);
     if (seen.has(r.id)) errors.push(`${w}: duplicate id`);

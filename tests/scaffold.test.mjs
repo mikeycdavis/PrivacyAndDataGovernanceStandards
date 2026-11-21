@@ -108,3 +108,13 @@ test('every package.json in the tree is checked for license fields, including ne
   assert.ok(checkPackageLicense({ license: 'MIT' }, 'tools/package.json').length > 0);
   for (const f of listFiles('.').filter(f => f.split('/').pop() === 'package.json')) assert.deepEqual(checkPackageLicense(readJson(f), f), []);
 });
+
+// ---- Codex round 2 on PR 3 ----
+test('non-string rule ids are rejected; legal-regime names and conclusion verbs are refused', () => {
+  assert.ok(checkRules([{ ...goodRule, id: ['pdg-inventory.dataset-declared'] }]).length > 0);
+  assert.ok(checkRules([{ ...goodRule, id: ['pdg-inventory.dataset-declared'] }, { ...goodRule, id: ['pdg-inventory.dataset-declared'] }]).length > 0);
+  for (const t of ['System satisfies all GDPR requirements', 'System conforms to GDPR', 'Processing is lawful', 'Meets CCPA', 'Covered by HIPAA']) {
+    assert.ok(checkRules([{ ...goodRule, title: t }]).length > 0, t);
+  }
+  assert.deepEqual(checkRules([{ ...goodRule, rationale: 'Legal categories are overlays, not defaults; this is not a legal finding.' }]), []);
+});
