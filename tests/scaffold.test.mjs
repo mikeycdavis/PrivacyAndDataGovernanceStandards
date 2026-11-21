@@ -158,3 +158,13 @@ test('unicode-obfuscated legal wording, non-ASCII paths and nested .git are refu
   const d = mkdtempSync(j(tmpdir(), 'pdg-')); mkdirSync(j(d, 'x', '.git'), { recursive: true }); wf(j(d, 'x', '.git', 'LICENSE'), 'x'); wf(j(d, 'ok.txt'), 'x');
   assert.ok(listFiles(d).includes('x/.git/LICENSE'));
 });
+
+test('document-level catalog keys are refused; _file name is not scanned', () => {
+  const mk = body => { const d = mkdtempSync(j(tmpdir(), 'pdg-')); wf(j(d, 'a.json'), body); return d; };
+  assert.throws(() => loadCatalog(mk('{"description":"GDPR compliant","rules":[]}')), /unknown document-level key/);
+  assert.throws(() => loadCatalog(mk('{"schema":"is compliant","rules":[]}')));
+  assert.throws(() => loadCatalog(mk('{"schema":["x"],"rules":[]}')));
+  assert.deepEqual(loadCatalog(mk('{"schema":"pdg-rules/0.1.0-proposed","rules":[]}')), []);
+  assert.deepEqual(checkRules([{ ...goodRule, _file: 'meets.json' }]), []);
+  assert.ok(checkRules([{ ...goodRule, title: 'in  line  with x' }]).length > 0);
+});

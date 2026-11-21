@@ -7,7 +7,7 @@ export const DOMAINS = ['pdg-inventory', 'pdg-purpose', 'pdg-basis', 'pdg-lifecy
 export const ID_RE = /^(pdg-[a-z][a-z0-9]*)\.([a-z][a-z0-9]*(-[a-z0-9]+)*)$/;
 export const LEVELS = ['required', 'recommended', 'optional', 'forbidden'];
 export const ASSURANCE = ['full', 'partial', 'none'];
-const COMPLIANCE_WORDING = /compl(y|ies|ied|iant|iance)|conform|satisf|lawful|legally|permitted by law|meets?|adher|certif|approved|in line with|\b(vcdpa|cpa|pipl|appi|nis2|dpdpa|dpa|ukgdpr)\b|\b(gdpr|ccpa|cpra|hipaa|lgpd|pipeda|pdpa|coppa|ferpa|glba|pci|sox)\b/i;
+const COMPLIANCE_WORDING = /compl(y|ies|ied|iant|iance)|conform|satisf|lawful|legally|permitted by law|meets?|adher|certif|approved|in\s+line\s+with|\b(vcdpa|cpa|pipl|appi|nis2|dpdpa|dpa|ukgdpr)\b|\b(gdpr|ccpa|cpra|hipaa|lgpd|pipeda|pdpa|coppa|ferpa|glba|pci|sox)\b/i;
 
 export function checkRules(rules) {
   const errors = [];
@@ -24,7 +24,7 @@ export function checkRules(rules) {
     if (r.criteriaStatus !== 'Proposed') errors.push(`${w}: criteriaStatus must be Proposed (nothing is frozen)`);
     if (typeof r.title !== 'string' || !r.title) errors.push(`${w}: missing title`);
     if (!Array.isArray(r.crossReferences)) errors.push(`${w}: crossReferences must be an array`);
-    for (const [k, v] of Object.entries(r)) if (hit(k) || hasLegalWording(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
+    for (const [k, v] of Object.entries(r)) if (k !== '_file' && (hit(k) || hasLegalWording(v))) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
   }
   return errors;
 }
@@ -50,6 +50,8 @@ export function loadCatalog(dir = 'rules') {
   return files.flatMap(f => {
     const doc = readJson(dir + '/' + f);
     if (!doc || typeof doc !== 'object' || !Array.isArray(doc.rules)) throw new Error(dir + '/' + f + ': rules must be an array');
+    for (const k of Object.keys(doc)) if (k !== 'rules' && k !== 'schema') throw new Error(dir + '/' + f + ': unknown document-level key (only schema and rules are allowed)');
+    if ('schema' in doc && (typeof doc.schema !== 'string' || hit(doc.schema))) throw new Error(dir + '/' + f + ': schema must be a plain string without legal wording');
     return doc.rules.map(r => ({ ...r, _file: f }));
   });
 }
