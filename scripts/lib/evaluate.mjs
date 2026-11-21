@@ -9,9 +9,18 @@ const RESULTS = ['supports', 'contradicts', 'inconclusive'];
 const EXC_KEYS = ['id', 'ruleId', 'datasetRef', 'owner', 'rationale', 'scope', 'evidenceRef', 'expiresAt'];
 const DURATION = /^P(?!$)([0-9]+Y)?([0-9]+M)?([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$/;
 const WEEKS = /^P[0-9]+W$/;
-const durationOk = p => (WEEKS.test(p) || DURATION.test(p)) && /[1-9]/.test(p);
+// Finite periods above MAX_DAYS (about 100 years) are effectively indefinite and are refused like any malformed period.
+const MAX_DAYS = 36500;
+function periodDays(p) {
+  if (WEEKS.test(p)) return Number(p.slice(1, -1)) * 7;
+  const m = DURATION.exec(p);
+  return Number(m[1] ? m[1].slice(0, -1) : 0) * 365 + Number(m[2] ? m[2].slice(0, -1) : 0) * 31 + Number(m[3] ? m[3].slice(0, -1) : 0);
+}
+const durationOk = p => (WEEKS.test(p) || DURATION.test(p)) && /[1-9]/.test(p) && periodDays(p) <= MAX_DAYS;
 const DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+// A 64-hex string made of one repeated character is a placeholder, not a hash.
 const HASH = /^[0-9a-f]{64}$/;
+const hashOk = h => HASH.test(h) && !new RegExp('^(.)'+String.fromCharCode(92)+'1{63}$').test(h);
 export const RULE_IDS = [
   'pdg-inventory.dataset-declared', 'pdg-inventory.class-declared',
   'pdg-purpose.purpose-declared', 'pdg-purpose.field-use-mapped',
@@ -104,7 +113,7 @@ function envelopeProblems(e) {
     if (!['tool', 'agent'].includes(p.kind)) return true;
   } else if (p.kind !== 'human') return true;
   if (!validDate(e.retrievedAt) || !validDate(e.validUntil) || e.retrievedAt > e.validUntil) return true;
-  if (!isObj(e.retention) || !str(e.retention.location) || typeof e.retention.hash !== 'string' || !HASH.test(e.retention.hash)) return true;
+  if (!isObj(e.retention) || !str(e.retention.location) || typeof e.retention.hash !== 'string' || !hashOk(e.retention.hash)) return true;
   if (Object.keys(e.retention).some(k => !['location', 'hash'].includes(k))) return true;
   if (!RESULTS.includes(e.result)) return true;
   if (!Array.isArray(e.limitations) || e.limitations.length === 0 || !e.limitations.every(str)) return true;

@@ -389,3 +389,17 @@ test('CLI exit-code contract: 1 for FAIL, 3 for REVIEW_REQUIRED/INDETERMINATE, w
   assert.equal(spawnSync('node', ['scripts/evaluate.mjs', put('r.json', review), ...now]).status, 3);
   assert.equal(spawnSync('node', ['scripts/evaluate.mjs', put('i.json', indet), ...now]).status, 3);
 });
+
+// ---- independent review round 2 ----
+test('placeholder hashes and effectively-indefinite finite periods do not reach PASS', () => {
+  let d = base(); d.evidence.forEach(e => { e.retention.hash = '0'.repeat(64); });
+  assert.notEqual(run(d).verdict, 'PASS');
+  d = base(); d.evidence.forEach(e => { e.retention.hash = 'a'.repeat(64); });
+  assert.notEqual(run(d).verdict, 'PASS');
+  for (const p of ['P99999999Y', 'P101Y', 'P40000D', 'P6000W']) {
+    d = base(); d.datasets[0].retention.period = p;
+    assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail', p);
+  }
+  d = base(); d.datasets[0].retention.period = 'P100Y';
+  assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'pass');
+});
