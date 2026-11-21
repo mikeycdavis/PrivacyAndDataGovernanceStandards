@@ -30,8 +30,8 @@ export function checkRules(rules) {
 }
 
 // Best-effort denylist, NOT proof of absence: it scans every string at any depth (also object keys) but only knows listed terms.
-// Text is NFKC-normalised and format/zero-width/control characters are removed before matching; cross-script homoglyphs are not folded.
-const fold = s => s.normalize('NFKC').replace(new RegExp('['+String.fromCharCode(92)+'p{Cf}'+String.fromCharCode(92)+'p{Cc}]','gu'), '');
+// Text is NFKD-normalised and format, control and combining-mark characters (incl. variation selectors) are removed before matching; cross-script homoglyphs are not folded.
+const fold = s => s.normalize('NFKD').replace(new RegExp('['+String.fromCharCode(92)+'p{Cf}'+String.fromCharCode(92)+'p{Cc}'+String.fromCharCode(92)+'p{M}]','gu'), '');
 const hit = s => COMPLIANCE_WORDING.test(s) || COMPLIANCE_WORDING.test(fold(s));
 function hasLegalWording(v, depth = 0) {
   if (depth > 20) return true; // too deep to examine: fail closed

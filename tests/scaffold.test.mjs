@@ -173,3 +173,7 @@ test('a source _file key is refused as reserved', () => {
   const d = mkdtempSync(j(tmpdir(), 'pdg-')); wf(j(d, 'a.json'), JSON.stringify({ rules: [{ ...goodRule, _file: { claim: 'GDPR compliant' } }] }));
   assert.throws(() => loadCatalog(d), /reserved/);
 });
+
+test('variation selectors, joiners and combining marks inside a legal term are folded away', () => {
+  for (const c of [0xfe0f, 0x34f, 0x180b, 0x301]) assert.ok(checkRules([{ ...goodRule, title: 'compl' + String.fromCharCode(c) + 'iance' }]).length > 0, c.toString(16));
+});
