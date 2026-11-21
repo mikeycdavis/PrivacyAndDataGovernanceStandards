@@ -24,7 +24,7 @@ export function checkRules(rules) {
     if (r.criteriaStatus !== 'Proposed') errors.push(`${w}: criteriaStatus must be Proposed (nothing is frozen)`);
     if (typeof r.title !== 'string' || !r.title) errors.push(`${w}: missing title`);
     if (!Array.isArray(r.crossReferences)) errors.push(`${w}: crossReferences must be an array`);
-    for (const [k, v] of Object.entries(r)) if (hasLegalWording(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
+    for (const [k, v] of Object.entries(r)) if (COMPLIANCE_WORDING.test(k) || hasLegalWording(v)) errors.push(`${w}: legal-compliance wording is not permitted (field ${k})`);
   }
   return errors;
 }
@@ -41,7 +41,7 @@ function hasLegalWording(v, depth = 0) {
 export function loadCatalog(dir = 'rules') {
   if (!existsSync(dir)) return [];
   // Fail closed: every file under rules/ at any depth must be a lowercase .json catalog file; anything else is an error, not skipped.
-  const files = listFiles(dir);
+  const files = listFiles(dir, []);
   const bad = files.filter(f => !/^[a-z0-9][a-z0-9._-]*[.]json$/.test(f.split('/').pop()) || f.includes('/'));
   if (bad.length) throw new Error('unexpected files under ' + dir + ': ' + bad.join(', ') + ' (only flat lowercase .json files are allowed)');
   return files.flatMap(f => {

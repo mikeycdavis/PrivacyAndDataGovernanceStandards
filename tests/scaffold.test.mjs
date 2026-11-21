@@ -143,3 +143,10 @@ test('catalog loader fails closed on nested, mis-cased, non-json files and null 
   assert.throws(() => loadCatalog(mk('a.json', 'null')), /rules must be an array/);
   assert.deepEqual(loadCatalog(mk('a.json', '{"rules":[]}')), []);
 });
+
+test('top-level keys are scanned; node_modules at any depth is refused', () => {
+  assert.ok(checkRules([{ ...goodRule, 'System complies with GDPR': true }]).length > 0);
+  assert.ok(checkInventory([...REQUIRED, 'tools/node_modules/d/LICENSE']).some(e => /node_modules/.test(e)));
+  const d = mkdtempSync(j(tmpdir(), 'pdg-')); mkdirSync(j(d, 'node_modules'), { recursive: true }); wf(j(d, 'node_modules', 'invalid.json'), '{"rules":[{"id":"bad"}]}');
+  assert.throws(() => loadCatalog(d));
+});

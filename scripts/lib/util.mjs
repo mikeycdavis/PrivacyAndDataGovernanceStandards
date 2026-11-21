@@ -12,11 +12,11 @@ export function readJson(path) {
 export function sha256(buf) { return createHash('sha256').update(buf).digest('hex'); }
 
 /** Deterministic, sorted, forward-slash file list under root, skipping .git and node_modules. */
-export function listFiles(root) {
+export function listFiles(root, skip = ['.git', 'node_modules']) {
   const out = [];
   (function walk(dir) {
     for (const name of readdirSync(dir).sort()) {
-      if (name === '.git' || name === 'node_modules') continue;
+      if (skip.includes(name)) continue;
       const p = join(dir, name);
       if (statSync(p).isDirectory()) walk(p); else out.push(relative(root, p).split(sep).join('/'));
     }
