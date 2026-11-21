@@ -22,3 +22,5 @@ Android owns SDK and permission inventories and extends the shared data-inventor
 
 ## Retention period profile
 Periods use a restricted ISO 8601 profile: integer Y/M/D/H/M/S designators, or a single integer-week form (`P2W`). Zero periods, week-mixed forms and fractional values are not accepted; `indefinite` needs a complete, unexpired exception.
+
+- The evaluation time (`--now`) is caller-supplied for reproducibility; a clock set in the past makes expired evidence look current. Reports state the time used, and CI must pass the real time.
