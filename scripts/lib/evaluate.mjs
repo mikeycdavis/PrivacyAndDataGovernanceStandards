@@ -52,6 +52,15 @@ function gate0(doc) {
   if (arr(doc.classes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
   for (const k of ['purposes', 'datasets', 'evidence', 'exceptions']) if (arr(doc[k]).some(x => !isObj(x))) return 'malformed entry in declarations';
   if (arr(doc.datasets).some(d => Array.isArray(d.fields) && d.fields.some(f => !isObj(f)))) return 'malformed entry in declarations';
+  if ('applicability' in doc) {
+    if (!isObj(doc.applicability)) return 'malformed applicability';
+    if ('attestation' in doc.applicability && !isObj(doc.applicability.attestation)) return 'malformed applicability';
+  }
+  for (const d of arr(doc.datasets)) {
+    if (('classes' in d && !Array.isArray(d.classes)) || ('purposes' in d && !Array.isArray(d.purposes)) || ('fields' in d && !Array.isArray(d.fields)) || ('retention' in d && !isObj(d.retention))) return 'malformed entry in declarations';
+    if (arr(d.classes).some(c => typeof c !== 'string') || arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
+    if (arr(d.fields).some(f => 'purposeRefs' in f && (!Array.isArray(f.purposeRefs) || f.purposeRefs.some(x => typeof x !== 'string')))) return 'malformed entry in declarations';
+  }
   const only = (o, keys) => !isObj(o) || Object.keys(o).every(k => keys.includes(k));
   if (isObj(doc.applicability)) {
     if (!only(doc.applicability, ['declared', 'attestation'])) return 'unknown field in declarations';
@@ -99,11 +108,9 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
 
   // Applicability: unknown is never silently not-applicable.
   const ap = doc.applicability;
-  if (!isObj(ap) || typeof ap.declared !== 'boolean') {
-    return { gate0: null, verdict: 'INDETERMINATE', results: [], limitations: LIMITATIONS, note: 'applicability not declared' };
-  }
   let naOk = null;
-  if (ap.declared === false) {
+  const unknownApplicability = !isObj(ap) || typeof ap.declared !== 'boolean';
+  if (!unknownApplicability && ap.declared === false) {
     const a = ap.attestation;
     naOk = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
   }
@@ -184,6 +191,10 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   });
 
   const results = RULE_IDS.map(id => R[id].out());
+  if (unknownApplicability) {
+    const bad = results.filter(x => x.ruleId.startsWith('pdg-evidence.') && x.status !== 'pass');
+    return { gate0: null, verdict: bad.length ? 'FAIL' : 'INDETERMINATE', results: bad, limitations: LIMITATIONS, note: 'applicability not declared' };
+  }
   if (naOk !== null) {
     const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
     return { gate0: null, verdict: !naOk ? 'REVIEW_REQUIRED' : structural ? 'NOT_APPLICABLE' : 'FAIL', results: structural ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS,

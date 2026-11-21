@@ -285,3 +285,18 @@ test('malformed entries in classes, purposes, datasets, fields, evidence or exce
     d => d.evidence.push(null), d => d.exceptions.push('x')];
   for (const m of muts) { const d = base(); m(d); assert.ok(run(d).gate0); assert.equal(run(d).verdict, null); }
 });
+
+// ---- fifth Codex review (exact head 893b16d) ----
+test('wrongly typed nested containers are refused at gate 0', () => {
+  const muts = [d => { d.applicability.attestation = [{ unknown: true }]; }, d => { d.datasets[0].fields = { unknown: true }; },
+    d => { d.applicability = 'yes'; }, d => { d.datasets[0].retention = []; }, d => { d.datasets[0].classes = 'personal'; }, d => { d.datasets[0].purposes = {}; },
+    d => { d.datasets[0].fields[0].purposeRefs = 'P1'; }];
+  for (const m of muts) { const d = base(); m(d); assert.ok(run(d).gate0, String(m)); assert.equal(run(d).verdict, null); }
+});
+test('unknown applicability still reports invalid evidence as FAIL, never INDETERMINATE alone', () => {
+  for (const m of [e => { e.surface = 'live-platform'; }, e => { e.unknown = true; }]) {
+    const d = base(); delete d.applicability; m(d.evidence[0]);
+    assert.equal(run(d).verdict, 'FAIL');
+  }
+  const d = base(); delete d.applicability; assert.equal(run(d).verdict, 'INDETERMINATE');
+});
