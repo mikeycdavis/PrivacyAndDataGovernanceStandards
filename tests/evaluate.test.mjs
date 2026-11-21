@@ -229,3 +229,24 @@ test('purposes without text and fields without names do not pass', () => {
   d = base(); d.datasets[0].fields = [{ purposeRefs: ['P1'] }];
   assert.equal(status(run(d), 'pdg-purpose.field-use-mapped'), 'fail');
 });
+
+// ---- second Codex review (exact head 6e01744) ----
+test('attestation dated in the future does not establish not-applicable', () => {
+  const d = base(); d.applicability = { declared: false, attestation: { by: 'human', name: 'a reviewer', basis: 'no data held', attestedAt: '2027-01-01T00:00:00Z' } };
+  assert.equal(run(d).verdict, 'REVIEW_REQUIRED');
+});
+test('duplicate dataset or purpose ids fail and cannot share evidence', () => {
+  let d = base(); const x = structuredClone(d.datasets[0]); x.owner = 'other-team'; d.datasets.push(x);
+  assert.equal(status(run(d), 'pdg-inventory.dataset-declared'), 'fail');
+  d = base(); d.purposes.push({ id: 'P1', text: 'dup' });
+  assert.equal(status(run(d), 'pdg-purpose.purpose-declared'), 'fail');
+});
+test('non-string hash is not coerced', () => {
+  const d = base(); d.evidence[0].retention.hash = [d.evidence[0].retention.hash];
+  assert.equal(status(run(d), 'pdg-evidence.envelope-valid'), 'fail');
+});
+test('unknown fields inside declarations are refused at gate 0 without echo', () => {
+  const muts = [d => { d.datasets[0].retention.extra = true; }, d => { d.datasets[0].zzz = 1; }, d => { d.datasets[0].fields[0].zzz = 1; },
+    d => { d.purposes[0].zzz = 1; }, d => { d.applicability.zzz = 1; }];
+  for (const m of muts) { const d = base(); m(d); const r = run(d); assert.ok(r.gate0); assert.equal(r.verdict, null); assert.ok(!JSON.stringify(r).includes('zzz')); }
+});

@@ -26,7 +26,6 @@ export const LIMITATIONS = [
 
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = v => typeof v === 'string' && v.trim() !== '';
-const arr = v => (Array.isArray(v) ? v : []);
 const validDate = v => {
   if (typeof v !== 'string' || !DATE.test(v)) return false;
   const t = Date.parse(v);
@@ -50,8 +49,21 @@ function gate0(doc) {
   for (const k of ['classes', 'purposes', 'datasets', 'evidence', 'exceptions']) {
     if (k in doc && !Array.isArray(doc[k])) return `${k} must be an array`;
   }
+  const only = (o, keys) => !isObj(o) || Object.keys(o).every(k => keys.includes(k));
+  if (isObj(doc.applicability)) {
+    if (!only(doc.applicability, ['declared', 'attestation'])) return 'unknown field in declarations';
+    if (isObj(doc.applicability.attestation) && !only(doc.applicability.attestation, ['by', 'name', 'basis', 'attestedAt'])) return 'unknown field in declarations';
+  }
+  if (arr(doc.purposes).some(p => !only(p, ['id', 'text']))) return 'unknown field in declarations';
+  for (const d of arr(doc.datasets)) {
+    if (!only(d, ['id', 'owner', 'source', 'classes', 'purposes', 'fields', 'retention'])) return 'unknown field in declarations';
+    if (isObj(d) && Array.isArray(d.fields) && d.fields.some(f => !only(f, ['name', 'purposeRefs']))) return 'unknown field in declarations';
+    if (isObj(d) && isObj(d.retention) && !only(d.retention, ['period', 'trigger', 'mechanism', 'backupStatement', 'testEvidenceRef'])) return 'unknown field in declarations';
+  }
   return null;
 }
+
+function arr(v) { return Array.isArray(v) ? v : []; }
 
 function envelopeProblems(e) {
   if (!isObj(e)) return true;
@@ -69,7 +81,7 @@ function envelopeProblems(e) {
     if (!['tool', 'agent'].includes(p.kind)) return true;
   } else if (p.kind !== 'human') return true;
   if (!validDate(e.retrievedAt) || !validDate(e.validUntil) || e.retrievedAt > e.validUntil) return true;
-  if (!isObj(e.retention) || !str(e.retention.location) || !HASH.test(e.retention.hash || '')) return true;
+  if (!isObj(e.retention) || !str(e.retention.location) || typeof e.retention.hash !== 'string' || !HASH.test(e.retention.hash)) return true;
   if (Object.keys(e.retention).some(k => !['location', 'hash'].includes(k))) return true;
   if (!RESULTS.includes(e.result)) return true;
   if (!Array.isArray(e.limitations) || e.limitations.length === 0 || !e.limitations.every(str)) return true;
@@ -89,7 +101,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   }
   if (ap.declared === false) {
     const a = ap.attestation;
-    const ok = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt);
+    const ok = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
     return { gate0: null, verdict: ok ? 'NOT_APPLICABLE' : 'REVIEW_REQUIRED', results: [], limitations: LIMITATIONS,
       note: ok ? 'not-applicable on a declared and attested basis' : 'not-applicable lacks a human attestation' };
   }
@@ -97,6 +109,9 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   const classes = new Set(arr(doc.classes).filter(str));
   const purposes = new Set(arr(doc.purposes).filter(p => isObj(p) && str(p.text)).map(p => p.id).filter(str));
   const datasets = arr(doc.datasets);
+  const dupe = (list, key) => { const c = {}; for (const x of list) if (isObj(x) && str(x[key])) c[x[key]] = (c[x[key]] || 0) + 1; return new Set(Object.keys(c).filter(k => c[k] > 1)); };
+  const dupDatasets = dupe(datasets, 'id');
+  const dupPurposes = dupe(arr(doc.purposes), 'id').size > 0;
   const evidence = arr(doc.evidence);
   const exceptions = arr(doc.exceptions);
   // Evidence is usable only if well-formed, supporting, bound to the dataset, retrieved by now and not expired.
@@ -106,6 +121,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   for (const e of evidence) if (isObj(e) && str(e.id) && !evById.has(e.id)) evById.set(e.id, e);
 
   const R = Object.fromEntries(RULE_IDS.map(id => [id, new Acc(id)]));
+  if (dupPurposes) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
   const noData = () => { for (const id of RULE_IDS.slice(0, 7)) R[id].raise('not-evaluated', '/datasets'); };
 
   // Exceptions
@@ -130,7 +146,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
 
   datasets.forEach((d, i) => {
     const at = `/datasets/${i}`;
-    if (!isObj(d) || !str(d.id) || !str(d.owner) || !str(d.source)) R['pdg-inventory.dataset-declared'].raise('fail', at);
+    if (!isObj(d) || !str(d.id) || !str(d.owner) || !str(d.source) || dupDatasets.has(d.id)) R['pdg-inventory.dataset-declared'].raise('fail', at);
     if (!isObj(d)) return;
     const cls = arr(d.classes);
     if (cls.length === 0 || !cls.every(c => classes.has(c))) R['pdg-inventory.class-declared'].raise('fail', at);
