@@ -1,0 +1,12 @@
+{
+  "name": "privacy-and-data-governance-standards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evidence-backed privacy and data-governance standards. Not legal advice; does not establish legal compliance.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-all.mjs"
+  }
+}
