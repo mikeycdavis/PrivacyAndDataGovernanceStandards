@@ -2,7 +2,7 @@
 
 Status: **Accepted by the owner** (Mike, 2026-11-20 local, 2026-11-21T03:09Z; thread message `cmsg_01S962nAgzeF44i1MHDz4h1uEiGGTzor4XytdNDcWYr5a1`).
 Source packet: `F:\GitHub Evidence\PrivacyAndDataGovernanceStandards\evidence-1\05-PDG-owner-decision-packet.md`.
-The owner approved all recommendations, with the D-04 refinement below. D-15 and D-16 are **not yet decided** (see end).
+The owner approved all recommendations, with the D-04 refinement below. D-15 and D-16 were decided afterwards (see end). The filename keeps its original d01-d14 name; the content covers D-01 to D-16.
 
 | ID | Decision (as approved) |
 | --- | --- |

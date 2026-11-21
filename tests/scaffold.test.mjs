@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { checkProvenance } from '../scripts/check-provenance.mjs';
 import { checkRules, loadCatalog, ID_RE, DOMAINS } from '../scripts/check-catalog.mjs';
@@ -64,4 +65,25 @@ test('inventory: shipped tree passes; missing file and license are refused', () 
 test('VERSION is 0.1.0 and package has no runtime dependencies', () => {
   assert.equal(readJson('package.json').version, '0.1.0');
   assert.equal(readJson('package.json').dependencies, undefined);
+});
+
+// ---- independent review of PR 3 ----
+test('license guard catches variants and directories, and a package.json license field', () => {
+  for (const f of ['LICENSE-MIT', 'LICENSE_APACHE', 'UNLICENSE', 'licenses/MIT.txt', 'LICENCE.md', 'docs/Copying']) {
+    assert.ok(checkInventory([...REQUIRED, f]).some(e => /license file present/.test(e)), f);
+  }
+  assert.ok(checkInventory(REQUIRED, { license: 'MIT' }).some(e => /license/.test(e)));
+  assert.ok(checkInventory(REQUIRED, { licenses: [] }).some(e => /license/.test(e)));
+  assert.deepEqual(checkInventory(REQUIRED, {}), []);
+});
+test('VERSION file matches package.json and no dependency fields exist', () => {
+  assert.equal(readFileSync('VERSION', 'utf8').trim(), readJson('package.json').version);
+  for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) assert.equal(readJson('package.json')[k], undefined, k);
+});
+test('provenance: non-object source entries are reported, not thrown', () => {
+  for (const bad of [null, 5, 'x', []]) assert.ok(checkProvenance({ sources: [bad] }).length > 0);
+});
+test('ADR 0001 does not contradict itself about D-15 and D-16', () => {
+  const t = readFileSync('docs/adr/0001-owner-decisions-d01-d14.md', 'utf8');
+  assert.ok(!/not yet decided/i.test(t));
 });

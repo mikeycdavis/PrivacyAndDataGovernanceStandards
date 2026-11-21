@@ -8,7 +8,8 @@ export function checkProvenance(doc) {
   if (!doc || !Array.isArray(doc.sources)) return ['sources must be an array'];
   const seen = new Set();
   for (const s of doc.sources) {
-    const where = `source ${s && s.id}`;
+    if (s === null || typeof s !== 'object' || Array.isArray(s)) { errors.push('source entry is not an object'); continue; }
+    const where = `source ${s.id}`;
     for (const k of ['id', 'title', 'publisher', 'url', 'status', 'retrieved']) {
       if (typeof s[k] !== 'string' || !s[k]) errors.push(`${where}: missing ${k}`);
     }
