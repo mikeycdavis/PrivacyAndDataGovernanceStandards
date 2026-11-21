@@ -351,3 +351,13 @@ test('evaluation clock is validated strictly in the library and the CLI', async 
   const { spawnSync } = await import('node:child_process');
   assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', '--now', '2026-11-31T00:00:00Z']).status, 2);
 });
+
+// ---- eighth Codex review (exact head 76e080e): strict CLI arguments ----
+test('CLI refuses empty --now, --now=value, duplicate flags, unknown options and extra arguments', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const f = 'fixtures/synthetic-compliant.json', ok = '2026-11-21T00:00:00Z';
+  const cases = [[f, '--now', ''], [f, '--now=2099-01-01T00:00:00Z'], [f, '--now', ok, '--now', 'garbage'], [f, '--bogus'], [f, 'extra.json'], ['--now', ok], []];
+  for (const a of cases) assert.equal(spawnSync('node', ['scripts/evaluate.mjs', ...a]).status, 2, JSON.stringify(a));
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', f, '--now', ok]).status, 0);
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', f]).status, 0);
+});
