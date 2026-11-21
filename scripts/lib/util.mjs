@@ -14,9 +14,10 @@ export function sha256(buf) { return createHash('sha256').update(buf).digest('he
 /** Deterministic, sorted, forward-slash file list under root, skipping .git and node_modules. */
 export function listFiles(root, skip = ['.git', 'node_modules']) {
   const out = [];
+  // `skip` applies to names directly under root only, so a nested .git or node_modules is never hidden.
   (function walk(dir) {
     for (const name of readdirSync(dir).sort()) {
-      if (skip.includes(name)) continue;
+      if (dir === root && skip.includes(name)) continue;
       const p = join(dir, name);
       if (statSync(p).isDirectory()) walk(p); else out.push(relative(root, p).split(sep).join('/'));
     }

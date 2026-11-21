@@ -1,12 +1,12 @@
 # PrivacyAndDataGovernanceStandards charter (Proposed; copied from evidence-1, charter issue 1)
 
-Status: **DRAFT for Mike's approval.** Pre-repository staging. Nothing here creates a repository, issue,
+Status: **DRAFT for Mike's approval.** Pre-repository staging. The repository now exists; nothing here creates an issue,
 label, account or release. Backlog IDs (`PDG-Bnn`) are **draft labels, not issue numbers**; real numbers
 are assigned only when issues exist. Every criterion below is **Proposed**; none is frozen.
 
 Written 2026-11-20 (local) / 2026-11-21T03Z. Owner brief: Mike's message in the PrivacyAndDataGovernance
 thread. Repository `mikeycdavis/PrivacyAndDataGovernanceStandards` was verified **absent** with `gh repo view`
-before drafting; creation is waiting on Mike's own typed authorization (auto mode refused a relayed one).
+before drafting; the repository has since been created by Mike.
 
 ## 1. Purpose
 
@@ -71,7 +71,7 @@ inspected) with URL, title, publisher, version/date, retrieval date, status, sco
 copy exists — hash. Abstract-only, inaccessible and paywalled sources cannot support required/forbidden
 rules. ISO material is terminology-only unless licensed access is supplied. Current state in `02-source-ledger.md`.
 
-## 7. Planned artifacts (not yet created)
+## 7. Planned artifacts (README.md, VERSION, CHANGELOG.md and package.json now exist; the rest are not yet created)
 
 Root: `README.md`, `INSTRUCTIONS.md`, `PROJECT.md`, `VERSION` (`0.1.0`, unreleased), `CHANGELOG.md`,
 `package.json` (Node ≥ 18, zero runtime dependencies), `project-policy.yml`. `standards/`, `rules/`,
