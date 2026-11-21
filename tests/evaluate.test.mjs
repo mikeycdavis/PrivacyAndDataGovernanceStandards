@@ -403,3 +403,16 @@ test('placeholder hashes and effectively-indefinite finite periods do not reach 
   d = base(); d.datasets[0].retention.period = 'P100Y';
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'pass');
 });
+
+test('unbounded expiry windows and periodic placeholder hashes do not reach PASS', () => {
+  for (const h of ['ab'.repeat(32), '0123456789abcdef'.repeat(4)]) { const d = base(); d.evidence.forEach(e => { e.retention.hash = h; }); assert.notEqual(run(d).verdict, 'PASS', h); }
+  let d = base(); d.evidence[0].validUntil = '9999-12-31T23:59:59Z'; d.evidence[0].retrievedAt = '0001-01-01T00:00:00Z';
+  assert.notEqual(run(d).verdict, 'PASS');
+  d = base(); d.datasets[0].retention.period = 'indefinite';
+  const ex = exp => ({ id: 'X', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: d.datasets[0].id, owner: 'o', rationale: 'r', scope: 's', evidenceRef: d.evidence.find(e => e.evidence?.kind === 'manual' && e.surface === 'attested')?.id ?? 'E3', expiresAt: exp });
+  d.exceptions = [ex('2027-01-01T00:00:00Z')];
+  const near = status(run(d), 'pdg-lifecycle.retention-declared');
+  d.exceptions = [ex('9999-12-31T23:59:59Z')];
+  assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
+  assert.ok(near === 'pass' || near === 'fail');
+});

@@ -21,7 +21,10 @@ const durationOk = p => (WEEKS.test(p) || DURATION.test(p)) && /[1-9]/.test(p) &
 const DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 // A 64-hex string made of one repeated character is a placeholder, not a hash.
 const HASH = /^[0-9a-f]{64}$/;
-const hashOk = h => HASH.test(h) && !new RegExp('^(.)'+String.fromCharCode(92)+'1{63}$').test(h);
+// Hashes built by repeating a block of 16 or fewer characters are placeholders.
+const hashOk = h => HASH.test(h) && !new RegExp('^(.{1,16})'+String.fromCharCode(92)+'1+$').test(h);
+// Bounded windows keep "unexpired" meaningful: no never-expiring exceptions or evidence.
+const DAY = 86400000, EXC_MAX_MS = 400 * DAY, EVID_MAX_MS = 1830 * DAY;
 export const RULE_IDS = [
   'pdg-inventory.dataset-declared', 'pdg-inventory.class-declared',
   'pdg-purpose.purpose-declared', 'pdg-purpose.field-use-mapped',
@@ -113,7 +116,7 @@ function envelopeProblems(e) {
   } else if (e.evidence.kind === 'automated') {
     if (!['tool', 'agent'].includes(p.kind)) return true;
   } else if (p.kind !== 'human') return true;
-  if (!validDate(e.retrievedAt) || !validDate(e.validUntil) || e.retrievedAt > e.validUntil) return true;
+  if (!validDate(e.retrievedAt) || !validDate(e.validUntil) || e.retrievedAt > e.validUntil || Date.parse(e.validUntil) - Date.parse(e.retrievedAt) > EVID_MAX_MS) return true;
   if (!isObj(e.retention) || !str(e.retention.location) || typeof e.retention.hash !== 'string' || !hashOk(e.retention.hash)) return true;
   if (Object.keys(e.retention).some(k => !['location', 'hash'].includes(k))) return true;
   if (!RESULTS.includes(e.result)) return true;
@@ -166,7 +169,7 @@ export function evaluate(doc, opts = {}) {
     const ev = evById.get(x.evidenceRef);
     if (!usable(ev, x.datasetRef) || ev.ruleId !== x.ruleId) return true;
     if (ev.surface !== 'attested' || !['human', 'legal'].includes(ev.producer.kind)) return true;
-    return !live(x.expiresAt);
+    return !(live(x.expiresAt) && Date.parse(x.expiresAt) - nowMs <= EXC_MAX_MS);
   };
   const dupExc = dupe(exceptions, 'id');
   exceptions.forEach((x, i) => { if (excProblem(x) || dupExc.has(x.id)) R['pdg-evidence.exception-complete'].raise('fail', `/exceptions/${i}`); });
