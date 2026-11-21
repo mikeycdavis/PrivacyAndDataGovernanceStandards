@@ -333,3 +333,21 @@ test('CLI refuses a bad or missing --now and exits cleanly', async () => {
   for (const a of [['--now', '2026-11-21'], ['--now']]) assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', ...a]).status, 2);
   assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', '--now', '2026-11-21T00:00:00Z']).status, 0);
 });
+
+// ---- seventh Codex review (exact head 761b86f) ----
+test('scalar types in declarations are checked at gate 0, including under not-applicable', () => {
+  const muts = [d => { d.purposes[0].id = { u: 1 }; }, d => { d.purposes[0].text = 5; }, d => { d.datasets[0].owner = 5; }, d => { d.datasets[0].fields[0].name = {}; },
+    d => { d.datasets[0].retention.period = 5; }, d => { d.datasets[0].id = []; }];
+  for (const m of muts) {
+    const d = base(); m(d); assert.ok(run(d).gate0);
+    d.applicability = { declared: false, attestation: { by: 'human', name: 'reviewer', basis: 'no data held', attestedAt: '2026-11-01T00:00:00Z' } };
+    assert.ok(run(d).gate0);
+  }
+});
+test('evaluation clock is validated strictly in the library and the CLI', async () => {
+  for (const now of ['2026-11-31T00:00:00Z', ['2026-11-21T00:00:00Z'], { toString: null }, 5, '']) {
+    const r = evaluate(base(), { now }); assert.ok(r.gate0); assert.equal(r.verdict, null);
+  }
+  const { spawnSync } = await import('node:child_process');
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', '--now', '2026-11-31T00:00:00Z']).status, 2);
+});

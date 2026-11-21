@@ -63,6 +63,14 @@ function gate0(doc) {
     if (arr(d.classes).some(c => typeof c !== 'string') || arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
     if (arr(d.fields).some(f => 'purposeRefs' in f && (!Array.isArray(f.purposeRefs) || f.purposeRefs.some(x => typeof x !== 'string')))) return 'malformed entry in declarations';
   }
+  const bad = (o, keys) => isObj(o) && keys.some(k => k in o && typeof o[k] !== 'string');
+  if (arr(doc.purposes).some(p => bad(p, ['id', 'text']))) return 'malformed entry in declarations';
+  if (isObj(doc.applicability) && isObj(doc.applicability.attestation) && bad(doc.applicability.attestation, ['by', 'name', 'basis', 'attestedAt'])) return 'malformed applicability';
+  for (const d of arr(doc.datasets)) {
+    if (bad(d, ['id', 'owner', 'source'])) return 'malformed entry in declarations';
+    if (arr(d.fields).some(f => bad(f, ['name']))) return 'malformed entry in declarations';
+    if (isObj(d.retention) && bad(d.retention, ['period', 'trigger', 'mechanism', 'backupStatement', 'testEvidenceRef'])) return 'malformed entry in declarations';
+  }
   const only = (o, keys) => !isObj(o) || Object.keys(o).every(k => keys.includes(k));
   if (isObj(doc.applicability)) {
     if (!only(doc.applicability, ['declared', 'attestation'])) return 'unknown field in declarations';
@@ -102,7 +110,9 @@ function envelopeProblems(e) {
   return false;
 }
 
-export function evaluate(doc, { now = new Date().toISOString() } = {}) {
+export function evaluate(doc, opts = {}) {
+  const now = isObj(opts) && 'now' in opts ? opts.now : new Date().toISOString().slice(0, 19) + 'Z';
+  if (!validDate(now)) return { gate0: 'evaluation time must be an ISO 8601 UTC timestamp', verdict: null, results: [], limitations: LIMITATIONS };
   const g = gate0(doc);
   if (g) return { gate0: g, verdict: null, results: [], limitations: LIMITATIONS };
   const nowMs = Date.parse(now);
