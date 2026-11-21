@@ -53,6 +53,7 @@ test('not-applicable needs declared basis AND a human attestation', () => {
   const d = base(); d.applicability = { declared: false };
   assert.equal(run(d).verdict, 'REVIEW_REQUIRED');
   d.applicability = { declared: false, attestation: { by: 'human', name: 'a reviewer', basis: 'no data held', attestedAt: '2026-11-01T00:00:00Z' } };
+  d.datasets = []; d.evidence = [];
   assert.equal(run(d).verdict, 'NOT_APPLICABLE');
   d.applicability.attestation.by = 'agent';
   assert.equal(run(d).verdict, 'REVIEW_REQUIRED');
@@ -278,7 +279,8 @@ test('not-applicable is not accepted when exceptions or evidence are malformed o
   assert.equal(run(d).verdict, 'FAIL');
   d = na(); d.evidence.push(structuredClone(d.evidence[0]));
   assert.equal(run(d).verdict, 'FAIL');
-  assert.equal(run(na()).verdict, 'NOT_APPLICABLE');
+  d = na(); d.datasets = []; d.evidence = [];
+  assert.equal(run(d).verdict, 'NOT_APPLICABLE');
 });
 test('malformed entries in classes, purposes, datasets, fields, evidence or exceptions are refused at gate 0', () => {
   const muts = [d => d.classes.push({ unknown: true }), d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
@@ -299,4 +301,35 @@ test('unknown applicability still reports invalid evidence as FAIL, never INDETE
     assert.equal(run(d).verdict, 'FAIL');
   }
   const d = base(); delete d.applicability; assert.equal(run(d).verdict, 'INDETERMINATE');
+});
+
+// ---- independent review (exact head f0aafb7) ----
+const naDoc = (att = true) => { const d = base(); d.applicability = att ? { declared: false, attestation: { by: 'human', name: 'reviewer', basis: 'no data held', attestedAt: '2026-11-01T00:00:00Z' } } : { declared: false }; return d; };
+test('unattested not-applicable with invalid evidence is FAIL, not a soft state', () => {
+  const d = naDoc(false); d.evidence[0].surface = 'live-platform';
+  assert.equal(run(d).verdict, 'FAIL');
+});
+test('attested not-applicable that still declares datasets is a contradiction: REVIEW_REQUIRED', () => {
+  assert.equal(run(naDoc()).verdict, 'REVIEW_REQUIRED');
+  const d = naDoc(); d.datasets = []; d.evidence = []; assert.equal(run(d).verdict, 'NOT_APPLICABLE');
+});
+test('durations: zero and mixed week forms are not accepted', () => {
+  for (const p of ['P0D', 'P0Y', 'PT0S', 'P1W2D']) { const d = base(); d.datasets[0].retention.period = p; assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail', p); }
+  for (const p of ['P1W', 'P2Y', 'P1Y6M', 'PT36H']) { const d = base(); d.datasets[0].retention.period = p; assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'pass', p); }
+});
+test('envelope ruleId and datasetRef must be known; exception refs and ids must be valid and unique', () => {
+  let d = base(); d.evidence[0].ruleId = 'pdg-bogus.nothing'; assert.equal(status(run(d), 'pdg-evidence.envelope-valid'), 'fail');
+  d = base(); d.evidence[0].datasetRef = 'ghost'; assert.equal(status(run(d), 'pdg-evidence.envelope-valid'), 'fail');
+  const ex = { id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E3', expiresAt: '2027-01-01T00:00:00Z' };
+  d = base(); d.exceptions = [ex]; assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'pass');
+  d = base(); d.exceptions = [ex, { ...ex }]; assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
+  d = base(); d.exceptions = [{ ...ex, ruleId: 'pdg-bogus.nothing' }]; assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
+});
+test('a purpose entry lacking id or text is reported even if unused', () => {
+  const d = base(); d.purposes.push({ id: 'P9' }); assert.equal(status(run(d), 'pdg-purpose.purpose-declared'), 'fail');
+});
+test('CLI refuses a bad or missing --now and exits cleanly', async () => {
+  const { spawnSync } = await import('node:child_process');
+  for (const a of [['--now', '2026-11-21'], ['--now']]) assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', ...a]).status, 2);
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', 'fixtures/synthetic-compliant.json', '--now', '2026-11-21T00:00:00Z']).status, 0);
 });

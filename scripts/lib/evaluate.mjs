@@ -7,7 +7,9 @@ const ENVELOPE_KEYS = ['id', 'ruleId', 'datasetRef', 'subject', 'scope', 'surfac
 const SURFACES = ['static', 'ingested', 'attested'];
 const RESULTS = ['supports', 'contradicts', 'inconclusive'];
 const EXC_KEYS = ['id', 'ruleId', 'datasetRef', 'owner', 'rationale', 'scope', 'evidenceRef', 'expiresAt'];
-const DURATION = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/;
+const DURATION = /^P(?!$)([0-9]+Y)?([0-9]+M)?([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$/;
+const WEEKS = /^P[0-9]+W$/;
+const durationOk = p => (WEEKS.test(p) || DURATION.test(p)) && /[1-9]/.test(p);
 const DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const HASH = /^[0-9a-f]{64}$/;
 export const RULE_IDS = [
@@ -120,6 +122,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   const datasets = arr(doc.datasets);
   const dupe = (list, key) => { const c = new Map(); for (const x of list) if (isObj(x) && str(x[key])) c.set(x[key], (c.get(x[key]) || 0) + 1); return new Set([...c].filter(([, n]) => n > 1).map(([k]) => k)); };
   const dupDatasets = dupe(datasets, 'id');
+  const datasetIds = new Set(datasets.filter(isObj).map(d => d.id).filter(str));
   const dupPurposes = dupe(arr(doc.purposes), 'id').size > 0;
   const evidence = arr(doc.evidence);
   const exceptions = arr(doc.exceptions);
@@ -130,6 +133,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   for (const e of evidence) if (isObj(e) && str(e.id) && !evById.has(e.id)) evById.set(e.id, e);
 
   const R = Object.fromEntries(RULE_IDS.map(id => [id, new Acc(id)]));
+  if (arr(doc.purposes).some(p => !str(p.id) || !str(p.text))) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
   if (dupPurposes) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
   const noData = () => { for (const id of RULE_IDS.slice(0, 7)) R[id].raise('not-evaluated', '/datasets'); };
 
@@ -137,11 +141,13 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   const excProblem = x => {
     if (!isObj(x) || Object.keys(x).some(k => !EXC_KEYS.includes(k))) return true;
     for (const k of EXC_KEYS.filter(k => k !== 'expiresAt')) if (!str(x[k])) return true;
+    if (!RULE_IDS.includes(x.ruleId) || !datasetIds.has(x.datasetRef)) return true;
     const ev = evById.get(x.evidenceRef);
     if (!usable(ev, x.datasetRef) || ev.ruleId !== x.ruleId) return true;
     return !live(x.expiresAt);
   };
-  exceptions.forEach((x, i) => { if (excProblem(x)) R['pdg-evidence.exception-complete'].raise('fail', `/exceptions/${i}`); });
+  const dupExc = dupe(exceptions, 'id');
+  exceptions.forEach((x, i) => { if (excProblem(x) || dupExc.has(x.id)) R['pdg-evidence.exception-complete'].raise('fail', `/exceptions/${i}`); });
   const granted = (ruleId, datasetId) => exceptions.some(x => !excProblem(x) && x.ruleId === ruleId && x.datasetRef === datasetId);
 
   // Envelopes
@@ -149,6 +155,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   evidence.forEach((e, i) => {
     let bad = envelopeProblems(e);
     if (!bad) { if (seen.has(e.id)) bad = true; seen.add(e.id); }
+    if (!bad && (!RULE_IDS.includes(e.ruleId) || !datasetIds.has(e.datasetRef))) bad = true;
     if (bad) R['pdg-evidence.envelope-valid'].raise('fail', `/evidence/${i}`);
   });
 
@@ -177,7 +184,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
       R['pdg-lifecycle.deletion-evidenced'].raise('not-evaluated', at);
       return;
     }
-    const periodOk = str(ret.period) && (DURATION.test(ret.period) || (ret.period === 'indefinite' && granted('pdg-lifecycle.retention-declared', d.id)));
+    const periodOk = str(ret.period) && (durationOk(ret.period) || (ret.period === 'indefinite' && granted('pdg-lifecycle.retention-declared', d.id)));
     if (!periodOk || !str(ret.trigger) || !str(ret.mechanism)) R['pdg-lifecycle.retention-declared'].raise('fail', `${at}/retention`);
     if (!str(ret.backupStatement)) R['pdg-lifecycle.backup-statement'].raise('fail', `${at}/retention`);
 
@@ -197,8 +204,9 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   }
   if (naOk !== null) {
     const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
-    return { gate0: null, verdict: !naOk ? 'REVIEW_REQUIRED' : structural ? 'NOT_APPLICABLE' : 'FAIL', results: structural ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS,
-      note: !naOk ? 'not-applicable lacks a human attestation' : structural ? 'not-applicable on a declared and attested basis' : 'invalid evidence or exception; not-applicable not accepted' };
+    const contradiction = datasets.length > 0;
+    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS,
+      note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : 'not-applicable on a declared and attested basis' };
   }
   const verdict = results.some(r => r.status === 'fail') ? 'FAIL'
     : results.some(r => r.status === 'not-evaluated') ? 'REVIEW_REQUIRED' : 'PASS';
