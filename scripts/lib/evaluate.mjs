@@ -100,6 +100,8 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
     return { gate0: null, verdict: 'INDETERMINATE', results: [], limitations: LIMITATIONS, note: 'applicability not declared' };
   }
   if (ap.declared === false) {
+    const bad = arr(doc.evidence).map((e, i) => (envelopeProblems(e) ? i : -1)).filter(i => i >= 0);
+    if (bad.length) return { gate0: null, verdict: 'FAIL', results: [{ ruleId: 'pdg-evidence.envelope-valid', status: 'fail', findings: bad.map(i => `/evidence/${i}`) }], limitations: LIMITATIONS, note: 'invalid evidence envelope; not-applicable not accepted' };
     const a = ap.attestation;
     const ok = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
     return { gate0: null, verdict: ok ? 'NOT_APPLICABLE' : 'REVIEW_REQUIRED', results: [], limitations: LIMITATIONS,
@@ -128,7 +130,8 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   const excProblem = x => {
     if (!isObj(x) || Object.keys(x).some(k => !EXC_KEYS.includes(k))) return true;
     for (const k of EXC_KEYS.filter(k => k !== 'expiresAt')) if (!str(x[k])) return true;
-    if (!usable(evById.get(x.evidenceRef), x.datasetRef)) return true;
+    const ev = evById.get(x.evidenceRef);
+    if (!usable(ev, x.datasetRef) || ev.ruleId !== x.ruleId) return true;
     return !live(x.expiresAt);
   };
   exceptions.forEach((x, i) => { if (excProblem(x)) R['pdg-evidence.exception-complete'].raise('fail', `/exceptions/${i}`); });

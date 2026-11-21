@@ -100,7 +100,7 @@ test('retention: missing period/trigger/mechanism fails; indefinite needs a live
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
   d = base(); d.datasets[0].retention.period = 'indefinite';
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
-  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'team-example', rationale: 'legal hold', scope: 'orders', evidenceRef: 'E1', expiresAt: '2027-01-01T00:00:00Z' }];
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'team-example', rationale: 'legal hold', scope: 'orders', evidenceRef: 'E3', expiresAt: '2027-01-01T00:00:00Z' }];
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'pass');
   d.exceptions[0].expiresAt = '2026-11-20T00:00:00Z';
   assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
@@ -152,14 +152,14 @@ test('envelope: agent or tool evidence can never be an attestation or legal revi
 test('exceptions: missing owner/rationale/scope/evidence/expiry is invalid and grants nothing', () => {
   for (const k of ['owner', 'rationale', 'scope', 'evidenceRef', 'expiresAt']) {
     const d = base(); d.datasets[0].retention.period = 'indefinite';
-    d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E1', expiresAt: '2027-01-01T00:00:00Z' }];
+    d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E3', expiresAt: '2027-01-01T00:00:00Z' }];
     delete d.exceptions[0][k];
     assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail', k);
     assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail', k);
   }
 });
 test('exceptions: expired exception fails the exception rule', () => {
-  const d = base(); d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E1', expiresAt: '2026-01-01T00:00:00Z' }];
+  const d = base(); d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E3', expiresAt: '2026-01-01T00:00:00Z' }];
   assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
 });
 
@@ -198,7 +198,7 @@ test('fixtures contain only obviously synthetic values (reserved domains, no dig
 // ---- Codex review findings (exact head 3526e9f) ----
 const withIndef = (mut) => {
   const d = base(); d.datasets[0].retention.period = 'indefinite';
-  d.evidence.push({ ...structuredClone(d.evidence[0]), id: 'E2' }); mut(d.evidence[1]);
+  d.evidence.push({ ...structuredClone(d.evidence[1]), id: 'E2' }); mut(d.evidence[2]);
   d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E2', expiresAt: '2027-01-01T00:00:00Z' }];
   return d;
 };
@@ -249,4 +249,19 @@ test('unknown fields inside declarations are refused at gate 0 without echo', ()
   const muts = [d => { d.datasets[0].retention.extra = true; }, d => { d.datasets[0].zzz = 1; }, d => { d.datasets[0].fields[0].zzz = 1; },
     d => { d.purposes[0].zzz = 1; }, d => { d.applicability.zzz = 1; }];
   for (const m of muts) { const d = base(); m(d); const r = run(d); assert.ok(r.gate0); assert.equal(r.verdict, null); assert.ok(!JSON.stringify(r).includes('zzz')); }
+});
+
+// ---- third Codex review (exact head e991e11) ----
+test('exception evidence must target the excepted rule', () => {
+  const d = base(); d.datasets[0].retention.period = 'indefinite';
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E1', expiresAt: '2027-01-01T00:00:00Z' }];
+  assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
+  assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
+});
+test('not-applicable does not bypass evidence-envelope refusal', () => {
+  for (const m of [e => { e.surface = 'live-platform'; }, e => { e.unknown = true; }]) {
+    const d = base(); d.applicability = { declared: false, attestation: { by: 'human', name: 'reviewer', basis: 'no data held', attestedAt: '2026-11-01T00:00:00Z' } };
+    m(d.evidence[0]);
+    assert.notEqual(run(d).verdict, 'NOT_APPLICABLE');
+  }
 });
