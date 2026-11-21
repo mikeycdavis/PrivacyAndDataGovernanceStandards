@@ -48,7 +48,7 @@ archive/replica deletion behavior · 18 data quality where it materially affects
 19 AI/ML dataset-governance interfaces · 20 evidence, exceptions, expiry, residual limitations.
 
 Per-area classification (owned here / defer / extension / overlay / source-blocked) is in
-`03-ownership-and-duplication-map.md` §3.
+`03-ownership-and-duplication-map.md` §3 (planned for this repository; currently only in the external evidence folder).
 
 ## 5. Fail-closed principles (proposed defaults; each normative outcome goes to the owner before freezing)
 

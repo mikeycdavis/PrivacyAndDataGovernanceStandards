@@ -6,14 +6,18 @@ export const REQUIRED = ['README.md', 'VERSION', 'CHANGELOG.md', 'package.json',
 
 const LICENSE_NAME = /^((un)?licen[cs]es?|copying)([._-].*)?$/i;
 
-export function checkInventory(files, pkg = {}) {
+export function checkPackageLicense(pkg, path) {
+  return pkg && typeof pkg === 'object' && ('license' in pkg || 'licenses' in pkg) ? [`${path} declares a license field (no license without owner decision)`] : [];
+}
+
+export function checkInventory(files, readPkg = () => ({})) {
   const errors = [];
   for (const need of REQUIRED) if (!files.includes(need)) errors.push(`missing ${need}`);
   for (const f of files) {
     if (f.split('/').some(seg => LICENSE_NAME.test(seg))) errors.push(`license file present: ${f} (no license without owner decision)`);
   }
-  if (pkg && ('license' in pkg || 'licenses' in pkg)) errors.push('package.json declares a license field (no license without owner decision)');
+  for (const f of files.filter(f => f.split('/').pop() === 'package.json')) errors.push(...checkPackageLicense(readPkg(f), f));
   return errors;
 }
 
-if (isMain(import.meta.url)) report(checkInventory(listFiles('.'), readJson('package.json')), 'inventory ok');
+if (isMain(import.meta.url)) report(checkInventory(listFiles('.'), readJson), 'inventory ok');
