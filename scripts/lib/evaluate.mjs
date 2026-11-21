@@ -49,6 +49,9 @@ function gate0(doc) {
   for (const k of ['classes', 'purposes', 'datasets', 'evidence', 'exceptions']) {
     if (k in doc && !Array.isArray(doc[k])) return `${k} must be an array`;
   }
+  if (arr(doc.classes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
+  for (const k of ['purposes', 'datasets', 'evidence', 'exceptions']) if (arr(doc[k]).some(x => !isObj(x))) return 'malformed entry in declarations';
+  if (arr(doc.datasets).some(d => Array.isArray(d.fields) && d.fields.some(f => !isObj(f)))) return 'malformed entry in declarations';
   const only = (o, keys) => !isObj(o) || Object.keys(o).every(k => keys.includes(k));
   if (isObj(doc.applicability)) {
     if (!only(doc.applicability, ['declared', 'attestation'])) return 'unknown field in declarations';
@@ -99,19 +102,16 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   if (!isObj(ap) || typeof ap.declared !== 'boolean') {
     return { gate0: null, verdict: 'INDETERMINATE', results: [], limitations: LIMITATIONS, note: 'applicability not declared' };
   }
+  let naOk = null;
   if (ap.declared === false) {
-    const bad = arr(doc.evidence).map((e, i) => (envelopeProblems(e) ? i : -1)).filter(i => i >= 0);
-    if (bad.length) return { gate0: null, verdict: 'FAIL', results: [{ ruleId: 'pdg-evidence.envelope-valid', status: 'fail', findings: bad.map(i => `/evidence/${i}`) }], limitations: LIMITATIONS, note: 'invalid evidence envelope; not-applicable not accepted' };
     const a = ap.attestation;
-    const ok = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
-    return { gate0: null, verdict: ok ? 'NOT_APPLICABLE' : 'REVIEW_REQUIRED', results: [], limitations: LIMITATIONS,
-      note: ok ? 'not-applicable on a declared and attested basis' : 'not-applicable lacks a human attestation' };
+    naOk = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
   }
 
   const classes = new Set(arr(doc.classes).filter(str));
   const purposes = new Set(arr(doc.purposes).filter(p => isObj(p) && str(p.text)).map(p => p.id).filter(str));
   const datasets = arr(doc.datasets);
-  const dupe = (list, key) => { const c = {}; for (const x of list) if (isObj(x) && str(x[key])) c[x[key]] = (c[x[key]] || 0) + 1; return new Set(Object.keys(c).filter(k => c[k] > 1)); };
+  const dupe = (list, key) => { const c = new Map(); for (const x of list) if (isObj(x) && str(x[key])) c.set(x[key], (c.get(x[key]) || 0) + 1); return new Set([...c].filter(([, n]) => n > 1).map(([k]) => k)); };
   const dupDatasets = dupe(datasets, 'id');
   const dupPurposes = dupe(arr(doc.purposes), 'id').size > 0;
   const evidence = arr(doc.evidence);
@@ -184,6 +184,11 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   });
 
   const results = RULE_IDS.map(id => R[id].out());
+  if (naOk !== null) {
+    const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
+    return { gate0: null, verdict: !naOk ? 'REVIEW_REQUIRED' : structural ? 'NOT_APPLICABLE' : 'FAIL', results: structural ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS,
+      note: !naOk ? 'not-applicable lacks a human attestation' : structural ? 'not-applicable on a declared and attested basis' : 'invalid evidence or exception; not-applicable not accepted' };
+  }
   const verdict = results.some(r => r.status === 'fail') ? 'FAIL'
     : results.some(r => r.status === 'not-evaluated') ? 'REVIEW_REQUIRED' : 'PASS';
   return { gate0: null, verdict, results, limitations: LIMITATIONS };

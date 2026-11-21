@@ -265,3 +265,23 @@ test('not-applicable does not bypass evidence-envelope refusal', () => {
     assert.notEqual(run(d).verdict, 'NOT_APPLICABLE');
   }
 });
+
+// ---- fourth Codex review (exact head 6dd0d65) ----
+test('inherited property names as ids do not defeat duplicate detection', () => {
+  const d = base(); d.datasets[0].id = 'constructor'; for (const e of d.evidence) e.datasetRef = 'constructor';
+  d.exceptions = []; d.datasets.push(structuredClone(d.datasets[0]));
+  assert.equal(status(run(d), 'pdg-inventory.dataset-declared'), 'fail');
+});
+test('not-applicable is not accepted when exceptions or evidence are malformed or duplicated', () => {
+  const na = () => { const d = base(); d.applicability = { declared: false, attestation: { by: 'human', name: 'reviewer', basis: 'no data held', attestedAt: '2026-11-01T00:00:00Z' } }; return d; };
+  let d = na(); d.exceptions = [{ unknown: true }];
+  assert.equal(run(d).verdict, 'FAIL');
+  d = na(); d.evidence.push(structuredClone(d.evidence[0]));
+  assert.equal(run(d).verdict, 'FAIL');
+  assert.equal(run(na()).verdict, 'NOT_APPLICABLE');
+});
+test('malformed entries in classes, purposes, datasets, fields, evidence or exceptions are refused at gate 0', () => {
+  const muts = [d => d.classes.push({ unknown: true }), d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
+    d => d.evidence.push(null), d => d.exceptions.push('x')];
+  for (const m of muts) { const d = base(); m(d); assert.ok(run(d).gate0); assert.equal(run(d).verdict, null); }
+});
