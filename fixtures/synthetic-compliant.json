@@ -86,13 +86,13 @@
       "datasetRef": "orders",
       "subject": "orders retention exception support, synthetic",
       "scope": "synthetic fixture only",
-      "surface": "ingested",
+      "surface": "attested",
       "evidence": {
-        "kind": "automated"
+        "kind": "manual"
       },
       "producer": {
-        "kind": "tool",
-        "name": "example-test-runner",
+        "kind": "human",
+        "name": "example-reviewer",
         "version": "1.0.0"
       },
       "retrievedAt": "2026-11-01T00:00:00Z",

@@ -56,6 +56,7 @@ function gate0(doc) {
   if (arr(doc.datasets).some(d => Array.isArray(d.fields) && d.fields.some(f => !isObj(f)))) return 'malformed entry in declarations';
   if ('applicability' in doc) {
     if (!isObj(doc.applicability)) return 'malformed applicability';
+    if (doc.applicability.declared === true && 'attestation' in doc.applicability) return 'malformed applicability';
     if ('attestation' in doc.applicability && !isObj(doc.applicability.attestation)) return 'malformed applicability';
   }
   for (const d of arr(doc.datasets)) {
@@ -154,6 +155,7 @@ export function evaluate(doc, opts = {}) {
     if (!RULE_IDS.includes(x.ruleId) || !datasetIds.has(x.datasetRef)) return true;
     const ev = evById.get(x.evidenceRef);
     if (!usable(ev, x.datasetRef) || ev.ruleId !== x.ruleId) return true;
+    if (ev.surface !== 'attested' || !['human', 'legal'].includes(ev.producer.kind)) return true;
     return !live(x.expiresAt);
   };
   const dupExc = dupe(exceptions, 'id');

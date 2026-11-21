@@ -12,6 +12,7 @@ Only that the declared, examinable surface produced no finding. It does not show
 - Gate 0: invalid JSON, wrong schema version, an unknown field or wrongly typed entry anywhere in the declarations (top level, applicability, purposes, datasets, fields, retention) is refused (exit 2), with no verdict. A bad or missing `--now` is also refused.
 - Applicability absent: INDETERMINATE. Not-applicable only with a declared basis and a human or legal attestation; otherwise REVIEW_REQUIRED. A not-applicable claim that still declares datasets is a contradiction (REVIEW_REQUIRED). Invalid evidence or exceptions give FAIL under every applicability state.
 - A missing checked field is `not-evaluated`, never pass. Indefinite retention needs a complete, unexpired exception.
+- Exceptions: the referenced evidence must be a human or legal attestation (never tool or agent output), bound to the same dataset and rule, and unexpired. Attestation is not accepted alongside `declared: true`. A not-applicable claim that also carries evidence or datasets fails or needs review.
 - Evidence: unknown fields, `live-platform`, an unknown rule or dataset reference all fail `pdg-evidence.envelope-valid` (FAIL, not a gate 0 refusal); agent or tool output is never an attestation or legal review; limitations are mandatory.
 - Findings carry a rule ID and index-only pointer. Declared values, ids and unknown keys are never echoed.
 

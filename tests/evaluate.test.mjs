@@ -34,7 +34,7 @@ test('gate 0: wrong schema, unknown top-level key, non-object, live-platform are
     assert.equal(r.verdict, null);
   }
   const d = base(); d.evidence[0].surface = 'live-platform';
-  assert.ok(run(d).gate0 || status(run(d), 'pdg-evidence.envelope-valid') === 'fail');
+  assert.equal(status(run(d), 'pdg-evidence.envelope-valid'), 'fail');
 });
 
 test('gate 0 message never echoes the unknown key name or value', () => {
@@ -359,5 +359,33 @@ test('CLI refuses empty --now, --now=value, duplicate flags, unknown options and
   const cases = [[f, '--now', ''], [f, '--now=2099-01-01T00:00:00Z'], [f, '--now', ok, '--now', 'garbage'], [f, '--bogus'], [f, 'extra.json'], ['--now', ok], []];
   for (const a of cases) assert.equal(spawnSync('node', ['scripts/evaluate.mjs', ...a]).status, 2, JSON.stringify(a));
   assert.equal(spawnSync('node', ['scripts/evaluate.mjs', f, '--now', ok]).status, 0);
-  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', f]).status, 0);
+});
+
+// ---- independent review of PR 4 (head 266d007) ----
+test('exception evidence must be a human or legal attestation, not tool output', () => {
+  const d = base(); d.datasets[0].retention.period = 'indefinite';
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E3', expiresAt: '2027-01-01T00:00:00Z' }];
+  assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'pass');
+  const e3 = d.evidence.find(e => e.id === 'E3');
+  e3.surface = 'ingested'; e3.evidence.kind = 'automated'; e3.producer.kind = 'tool';
+  assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
+  assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
+});
+test('an attestation alongside declared:true is refused at gate 0', () => {
+  const d = base(); d.applicability = { declared: true, attestation: {} };
+  assert.ok(run(d).gate0);
+});
+test('CLI exit-code contract: 1 for FAIL, 3 for REVIEW_REQUIRED/INDETERMINATE, with a pinned clock', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { writeFileSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'pdg-'));
+  const put = (name, d) => { const p = join(dir, name); writeFileSync(p, JSON.stringify(d)); return p; };
+  const now = ['--now', NOW];
+  const fail = base(); fail.datasets[0].owner = '';
+  const review = base(); delete review.datasets[0].retention.testEvidenceRef;
+  const indet = base(); delete indet.applicability;
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', put('f.json', fail), ...now]).status, 1);
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', put('r.json', review), ...now]).status, 3);
+  assert.equal(spawnSync('node', ['scripts/evaluate.mjs', put('i.json', indet), ...now]).status, 3);
 });
