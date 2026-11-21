@@ -3,7 +3,7 @@
 
 export const SCHEMA = 'pdg-declarations/0.1.0-proposed';
 const TOP_KEYS = ['schema', 'applicability', 'classes', 'purposes', 'datasets', 'evidence', 'exceptions'];
-const ENVELOPE_KEYS = ['id', 'ruleId', 'subject', 'scope', 'surface', 'evidence', 'producer', 'retrievedAt', 'validUntil', 'retention', 'result', 'limitations'];
+const ENVELOPE_KEYS = ['id', 'ruleId', 'datasetRef', 'subject', 'scope', 'surface', 'evidence', 'producer', 'retrievedAt', 'validUntil', 'retention', 'result', 'limitations'];
 const SURFACES = ['static', 'ingested', 'attested'];
 const RESULTS = ['supports', 'contradicts', 'inconclusive'];
 const EXC_KEYS = ['id', 'ruleId', 'datasetRef', 'owner', 'rationale', 'scope', 'evidenceRef', 'expiresAt'];
@@ -27,7 +27,11 @@ export const LIMITATIONS = [
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = v => typeof v === 'string' && v.trim() !== '';
 const arr = v => (Array.isArray(v) ? v : []);
-const validDate = v => typeof v === 'string' && DATE.test(v) && !Number.isNaN(Date.parse(v));
+const validDate = v => {
+  if (typeof v !== 'string' || !DATE.test(v)) return false;
+  const t = Date.parse(v);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 19) + 'Z' === v;
+};
 const rank = { fail: 3, 'not-evaluated': 2, pass: 0 };
 
 class Acc {
@@ -52,7 +56,7 @@ function gate0(doc) {
 function envelopeProblems(e) {
   if (!isObj(e)) return true;
   if (Object.keys(e).some(k => !ENVELOPE_KEYS.includes(k))) return true;
-  for (const k of ['id', 'ruleId', 'subject', 'scope']) if (!str(e[k])) return true;
+  for (const k of ['id', 'ruleId', 'datasetRef', 'subject', 'scope']) if (!str(e[k])) return true;
   if (!SURFACES.includes(e.surface)) return true;
   if (!isObj(e.evidence) || !['automated', 'manual'].includes(e.evidence.kind)) return true;
   if (Object.keys(e.evidence).some(k => k !== 'kind')) return true;
@@ -64,7 +68,7 @@ function envelopeProblems(e) {
   } else if (e.evidence.kind === 'automated') {
     if (!['tool', 'agent'].includes(p.kind)) return true;
   } else if (p.kind !== 'human') return true;
-  if (!validDate(e.retrievedAt) || !validDate(e.validUntil)) return true;
+  if (!validDate(e.retrievedAt) || !validDate(e.validUntil) || e.retrievedAt > e.validUntil) return true;
   if (!isObj(e.retention) || !str(e.retention.location) || !HASH.test(e.retention.hash || '')) return true;
   if (Object.keys(e.retention).some(k => !['location', 'hash'].includes(k))) return true;
   if (!RESULTS.includes(e.result)) return true;
@@ -91,10 +95,13 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   }
 
   const classes = new Set(arr(doc.classes).filter(str));
-  const purposes = new Set(arr(doc.purposes).filter(isObj).map(p => p.id).filter(str));
+  const purposes = new Set(arr(doc.purposes).filter(p => isObj(p) && str(p.text)).map(p => p.id).filter(str));
   const datasets = arr(doc.datasets);
   const evidence = arr(doc.evidence);
   const exceptions = arr(doc.exceptions);
+  // Evidence is usable only if well-formed, supporting, bound to the dataset, retrieved by now and not expired.
+  const usable = (e, datasetId) => isObj(e) && !envelopeProblems(e) && e.result === 'supports' && e.datasetRef === datasetId
+    && Date.parse(e.retrievedAt) <= nowMs && live(e.validUntil);
   const evById = new Map();
   for (const e of evidence) if (isObj(e) && str(e.id) && !evById.has(e.id)) evById.set(e.id, e);
 
@@ -105,7 +112,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
   const excProblem = x => {
     if (!isObj(x) || Object.keys(x).some(k => !EXC_KEYS.includes(k))) return true;
     for (const k of EXC_KEYS.filter(k => k !== 'expiresAt')) if (!str(x[k])) return true;
-    if (!evById.has(x.evidenceRef)) return true;
+    if (!usable(evById.get(x.evidenceRef), x.datasetRef)) return true;
     return !live(x.expiresAt);
   };
   exceptions.forEach((x, i) => { if (excProblem(x)) R['pdg-evidence.exception-complete'].raise('fail', `/exceptions/${i}`); });
@@ -134,7 +141,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
     if (!Array.isArray(d.fields) || d.fields.length === 0) R['pdg-purpose.field-use-mapped'].raise('not-evaluated', at);
     else d.fields.forEach((f, j) => {
       const refs = isObj(f) ? arr(f.purposeRefs) : [];
-      if (refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
+      if (!isObj(f) || !str(f.name) || refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
     });
 
     const ret = d.retention;
@@ -152,7 +159,7 @@ export function evaluate(doc, { now = new Date().toISOString() } = {}) {
     if (ref === undefined) R['pdg-lifecycle.deletion-evidenced'].raise('not-evaluated', `${at}/retention`);
     else {
       const e = evById.get(ref);
-      const ok = e && e.ruleId === 'pdg-lifecycle.deletion-evidenced' && e.result === 'supports' && live(e.validUntil) && !envelopeProblems(e);
+      const ok = e && e.ruleId === 'pdg-lifecycle.deletion-evidenced' && usable(e, d.id);
       if (!ok) R['pdg-lifecycle.deletion-evidenced'].raise('fail', `${at}/retention`);
     }
   });

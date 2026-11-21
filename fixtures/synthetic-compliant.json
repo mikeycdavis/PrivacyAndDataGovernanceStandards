@@ -30,6 +30,7 @@
     {
       "id": "E1",
       "ruleId": "pdg-lifecycle.deletion-evidenced",
+      "datasetRef": "orders",
       "subject": "orders delete job, synthetic test run",
       "scope": "synthetic fixture only",
       "surface": "ingested",

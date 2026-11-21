@@ -194,3 +194,38 @@ test('fixtures contain only obviously synthetic values (reserved domains, no dig
     assert.ok(!/\b(?:\d[ -]?){13,16}\b/.test(text.replace(/"hash": "[0-9a-f]+"/g, '')), 'card-like number');
   }
 });
+
+// ---- Codex review findings (exact head 3526e9f) ----
+const withIndef = (mut) => {
+  const d = base(); d.datasets[0].retention.period = 'indefinite';
+  d.evidence.push({ ...structuredClone(d.evidence[0]), id: 'E2' }); mut(d.evidence[1]);
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E2', expiresAt: '2027-01-01T00:00:00Z' }];
+  return d;
+};
+test('exception evidence must be usable: contradicting, expired, future or other-dataset evidence grants nothing', () => {
+  assert.equal(status(run(withIndef(() => {})), 'pdg-lifecycle.retention-declared'), 'pass');
+  for (const mut of [e => { e.result = 'contradicts'; }, e => { e.validUntil = '2020-01-01T00:00:00Z'; e.retrievedAt = '2019-01-01T00:00:00Z'; },
+    e => { e.retrievedAt = '2027-10-01T00:00:00Z'; e.validUntil = '2028-01-01T00:00:00Z'; }, e => { e.datasetRef = 'other'; }]) {
+    const d = withIndef(mut);
+    assert.equal(status(run(d), 'pdg-lifecycle.retention-declared'), 'fail');
+    assert.equal(status(run(d), 'pdg-evidence.exception-complete'), 'fail');
+  }
+});
+test('deletion evidence is bound to its dataset by datasetRef', () => {
+  const d = base(); d.datasets.push({ ...structuredClone(d.datasets[0]), id: 'unrelated-payroll' });
+  assert.equal(status(run(d), 'pdg-lifecycle.deletion-evidenced'), 'fail');
+  const e = base(); delete e.evidence[0].datasetRef;
+  assert.equal(status(run(e), 'pdg-evidence.envelope-valid'), 'fail');
+});
+test('future retrievedAt, reversed validity and impossible calendar dates are rejected', () => {
+  for (const mut of [e => { e.retrievedAt = '2027-10-01T00:00:00Z'; }, e => { e.validUntil = '2026-10-01T00:00:00Z'; }, e => { e.validUntil = '2027-02-30T00:00:00Z'; }]) {
+    const d = base(); mut(d.evidence[0]);
+    assert.equal(status(run(d), 'pdg-lifecycle.deletion-evidenced'), 'fail');
+  }
+});
+test('purposes without text and fields without names do not pass', () => {
+  let d = base(); d.purposes = [{ id: 'P1' }, { id: 'P2' }];
+  assert.equal(status(run(d), 'pdg-purpose.purpose-declared'), 'fail');
+  d = base(); d.datasets[0].fields = [{ purposeRefs: ['P1'] }];
+  assert.equal(status(run(d), 'pdg-purpose.field-use-mapped'), 'fail');
+});
