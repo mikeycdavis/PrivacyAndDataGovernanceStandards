@@ -34,6 +34,8 @@ export const RULE_IDS = [
   'pdg-evidence.envelope-valid', 'pdg-evidence.exception-complete',
 ];
 
+const BASIS_RISK = RULE_IDS.filter(x => x.startsWith('pdg-basis.') || x.startsWith('pdg-risk.'));
+
 export const LIMITATIONS = [
   'This is not a legal conclusion and no law or regulation was evaluated.',
   'Declarations were checked for presence and internal consistency only; their truth, accuracy and completeness were not examined.',
@@ -126,9 +128,9 @@ function shapeProblem(d) {
   return null;
 }
 
-// Class label match ignores case, surrounding space, and invisible format/control characters (NFKC-folded); other labels are not examined.
-const CF = new RegExp('[' + String.fromCharCode(92) + 'p{Cf}' + String.fromCharCode(92) + 'p{Cc}]', 'gu');
-const isPersonalLabel = c => c.normalize('NFKC').replace(CF, '').trim().toLowerCase() === 'personal';
+// Class labels: after trim and lower-casing, exactly 'personal' triggers the basis/risk rules. A label with any character outside [a-z0-9_.-]
+// (invisible, combining, lookalike or non-ASCII characters, inner spaces) cannot be examined reliably, so it is treated as unexaminable and the rules are not-evaluated (fail closed).
+const labelKind = c => { const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : /^[a-z0-9_.-]*$/.test(t) ? 'other' : 'unexaminable'; };
 
 function arr(v) { return Array.isArray(v) ? v : []; }
 
@@ -236,7 +238,9 @@ export function evaluate(doc, opts = {}) {
 
     // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
     // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
-    if (cls.some(isPersonalLabel)) {
+    const kinds = cls.map(labelKind);
+    if (kinds.includes('unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', at);
+    if (kinds.includes('personal')) {
       const good = (ref, ruleId) => { const e = evById.get(ref); return !!e && e.ruleId === ruleId && usable(e, d.id); };
       const ruleRef = (ruleId, ref, ptr) => {
         if (ref === undefined) R[ruleId].raise('not-evaluated', ptr);

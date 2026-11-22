@@ -492,9 +492,14 @@ test('a basis.kind label alone never waives the consent evidence; only an explic
   const c = base(); c.datasets[0].basis.consentNotRelied = 'yes';
   assert.ok(run(c).gate0);
 });
-test('the personal class label is matched ignoring case and surrounding space', () => {
-  for (const label of ['Personal', ' PERSONAL ', 'pers' + String.fromCharCode(0x200b) + 'onal', 'personal' + String.fromCharCode(0), 'personal'.toUpperCase().replace('P', String.fromCharCode(0xff30))]) {
+test('personal label: case/space variants trigger the rules; any unexaminable label (invisible, combining, lookalike, inner space) is not-evaluated, never PASS', () => {
+  const u = n => String.fromCharCode(n);
+  const labels = ['Personal', ' PERSONAL ', 'pers' + u(0x200b) + 'onal', 'personal' + u(0), u(0xff30) + 'ERSONAL', 'pers' + u(0xfe0f) + 'onal', 'pers' + u(0x34f) + 'onal', 'pers' + u(0x3164) + 'onal', 'pers' + u(0x2028) + 'onal',
+    'p' + u(0x435) + 'rsonal', u(0x1d18) + 'ersonal', 'per sonal', 'personal' + u(0x307)];
+  for (const label of labels) {
     const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
-    assert.equal(run(d).verdict, 'REVIEW_REQUIRED', label);
+    const r = run(d);
+    assert.notEqual(r.verdict, 'PASS', JSON.stringify(label));
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', JSON.stringify(label));
   }
 });
