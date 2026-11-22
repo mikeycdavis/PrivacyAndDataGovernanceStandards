@@ -220,6 +220,8 @@ export function evaluate(doc, opts = {}) {
   });
 
   if (datasets.length === 0) noData();
+  // An unrecognized label in the top-level vocabulary also requires review.
+  if (arr(doc.classes).some(c => labelKind(c) === 'unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', '/classes');
 
   datasets.forEach((d, i) => {
     const at = `/datasets/${i}`;

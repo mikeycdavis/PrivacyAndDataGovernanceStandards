@@ -519,3 +519,13 @@ test('unrecognized class labels (pii, personal-data, ...) require review and can
   const mixed = base(); mixed.classes = ['personal', 'pii']; mixed.datasets[0].classes = ['personal', 'pii'];
   assert.equal(run(mixed).verdict, 'REVIEW_REQUIRED');
 });
+test('an unrecognized label in the top-level classes vocabulary also prevents a pass', () => {
+  for (const label of ['pii', '', 'personal-data']) {
+    const d = base(); d.classes.push(label);
+    const r = run(d);
+    assert.notEqual(r.verdict, 'PASS', JSON.stringify(label));
+    for (const id of BR) assert.equal(status(r, id), 'not-evaluated', id);
+  }
+  const e = base(); e.datasets = []; e.classes = ['pii'];
+  assert.notEqual(run(e).verdict, 'PASS');
+});
