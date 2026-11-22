@@ -20,7 +20,7 @@ function valid(s, v) {
   if (s.required && isO && !s.required.every(k => k in v)) return false;
   if (s.properties && isO) {
     for (const k of Object.keys(v)) {
-      if (k in s.properties) { if (!valid(s.properties[k], v[k])) return false; }
+      if (Object.hasOwn(s.properties, k)) { if (!valid(s.properties[k], v[k])) return false; }
       else if (s.additionalProperties === false) return false;
     }
   }
@@ -72,7 +72,7 @@ test('JSON Schema and evaluator Gate 0 agree on valid and malformed documents', 
     d => { d.datasets[0].risk.transferRestrictions = {}; }, d => { d.datasets[0].risk.transferRestrictions.declared = 'yes'; },
     d => { d.datasets[0].risk.transferRestrictions.extra = 1; }, d => { d.datasets[0].risk.transferRestrictions.statementRef = 1; },
     d => { d.evidence = [1]; }, d => { d.exceptions = {}; }, d => { d.datasets = [1]; }, d => { d.datasets = {}; }, d => { delete d.schema; },
-    d => { delete d.datasets[0].basis; delete d.datasets[0].risk; }, d => { d.datasets[0].basis = { consentNotRelied: true }; },
+    d => { delete d.datasets[0].basis; delete d.datasets[0].risk; }, d => { d.datasets[0].basis = { consentNotRelied: true }; }, d => { d.datasets[0].toString = 1; }, d => { Object.defineProperty(d.datasets[0].basis, 'constructor', { value: 1, enumerable: true }); }, d => { Object.defineProperty(d, '__proto__', { value: 1, enumerable: true }); },
   ];
   let ok = 0;
   for (const [i, m] of muts.entries()) {

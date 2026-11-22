@@ -239,7 +239,7 @@ export function evaluate(doc, opts = {}) {
       if (!isObj(f) || !str(f.name) || refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
     });
 
-    // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
+    // Basis and risk rules (freeze candidate). A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
     // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
     const kinds = cls.map(labelKind);
     if (kinds.includes('unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', at);
