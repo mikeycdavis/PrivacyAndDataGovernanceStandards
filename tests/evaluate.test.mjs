@@ -67,8 +67,11 @@ test('inventory: missing owner or source fails; missing classes fails; undeclare
   assert.equal(status(run(d), 'pdg-inventory.dataset-declared'), 'fail');
   d = base(); d.datasets[0].classes = [];
   assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'fail');
-  d = base(); d.datasets[0].classes = ['secret-level-9'];
+  d = base(); d.classes = ['personal']; d.datasets[0].classes = ['personal', 'internal'];
   assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'fail');
+  d = base(); d.datasets[0].classes = ['secret-level-9'];
+  assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'not-evaluated');
+  assert.equal(run(d).verdict, 'REVIEW_REQUIRED');
 });
 test('inventory: no datasets declared is not a pass', () => {
   const d = base(); d.datasets = [];
@@ -283,7 +286,7 @@ test('not-applicable is not accepted when exceptions or evidence are malformed o
   assert.equal(run(d).verdict, 'NOT_APPLICABLE');
 });
 test('malformed entries in classes, purposes, datasets, fields, evidence or exceptions are refused at gate 0', () => {
-  const muts = [d => d.classes.push({ unknown: true }), d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
+  const muts = [d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
     d => d.evidence.push(null), d => d.exceptions.push('x')];
   for (const m of muts) { const d = base(); m(d); assert.ok(run(d).gate0); assert.equal(run(d).verdict, null); }
 });
@@ -537,4 +540,19 @@ test('an attested not-applicable claim cannot hide an unrecognized class label: 
   }
   const ok = { schema: base().schema, applicability: { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } }, classes: ['public'], datasets: [], evidence: [], exceptions: [] };
   assert.equal(run(ok).verdict, 'NOT_APPLICABLE');
+});
+test('non-string, empty and case-mismatched class labels: review or normalized match, never a pass and never a refusal', () => {
+  for (const bad of [null, 42, {}, [], true, '']) {
+    const top = base(); top.classes.push(bad);
+    const a = run(top); assert.equal(a.gate0, null); assert.equal(a.verdict, 'REVIEW_REQUIRED');
+    const ds = base(); ds.classes.push(bad); ds.datasets[0].classes.push(bad);
+    const b = run(ds); assert.equal(b.gate0, null); assert.equal(b.verdict, 'REVIEW_REQUIRED', JSON.stringify(bad));
+    const only = base(); only.datasets[0].classes = [bad];
+    assert.equal(run(only).verdict, 'REVIEW_REQUIRED', JSON.stringify(bad));
+    assert.ok(!JSON.stringify(a).includes('unknown'));
+  }
+  const m = base(); m.datasets[0].classes = [' PERSONAL ', 'Public'];
+  assert.equal(run(m).verdict, 'PASS');
+  const n = base(); n.classes = ['Personal', ' PUBLIC ']; n.datasets[0].classes = ['personal', 'public'];
+  assert.equal(run(n).verdict, 'PASS');
 });

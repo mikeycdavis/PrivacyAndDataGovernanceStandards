@@ -68,7 +68,6 @@ function gate0(doc) {
   for (const k of ['classes', 'purposes', 'datasets', 'evidence', 'exceptions']) {
     if (k in doc && !Array.isArray(doc[k])) return `${k} must be an array`;
   }
-  if (arr(doc.classes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
   for (const k of ['purposes', 'datasets', 'evidence', 'exceptions']) if (arr(doc[k]).some(x => !isObj(x))) return 'malformed entry in declarations';
   if (arr(doc.datasets).some(d => Array.isArray(d.fields) && d.fields.some(f => !isObj(f)))) return 'malformed entry in declarations';
   if ('applicability' in doc) {
@@ -78,7 +77,7 @@ function gate0(doc) {
   }
   for (const d of arr(doc.datasets)) {
     if (('classes' in d && !Array.isArray(d.classes)) || ('purposes' in d && !Array.isArray(d.purposes)) || ('fields' in d && !Array.isArray(d.fields)) || ('retention' in d && !isObj(d.retention))) return 'malformed entry in declarations';
-    if (arr(d.classes).some(c => typeof c !== 'string') || arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
+    if (arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
     if (arr(d.fields).some(f => 'purposeRefs' in f && (!Array.isArray(f.purposeRefs) || f.purposeRefs.some(x => typeof x !== 'string')))) return 'malformed entry in declarations';
   }
   const bad = (o, keys) => isObj(o) && keys.some(k => k in o && typeof o[k] !== 'string');
@@ -131,7 +130,7 @@ function shapeProblem(d) {
 // Class labels: the contract recognises exactly public, internal and personal (trimmed, lower-cased); personal is the canonical classification and no alias is defined.
 // Any other label (pii, personal-data, invisible, combining, lookalike or non-ASCII spellings) is unrecognized and makes the basis/risk rules not-evaluated (REVIEW_REQUIRED), never a pass.
 const KNOWN_LABELS = ['public', 'internal'];
-const labelKind = c => { const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : KNOWN_LABELS.includes(t) ? 'other' : 'unexaminable'; };
+const labelKind = c => { if (typeof c !== 'string') return 'unexaminable'; const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : KNOWN_LABELS.includes(t) ? 'other' : 'unexaminable'; };
 
 function arr(v) { return Array.isArray(v) ? v : []; }
 
@@ -175,7 +174,7 @@ export function evaluate(doc, opts = {}) {
     naOk = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
   }
 
-  const classes = new Set(arr(doc.classes).filter(str));
+  const classes = new Set(arr(doc.classes).filter(c => typeof c === 'string').map(c => c.trim().toLowerCase()));
   const purposes = new Set(arr(doc.purposes).filter(p => isObj(p) && str(p.text)).map(p => p.id).filter(str));
   const datasets = arr(doc.datasets);
   const dupe = (list, key) => { const c = new Map(); for (const x of list) if (isObj(x) && str(x[key])) c.set(x[key], (c.get(x[key]) || 0) + 1); return new Set([...c].filter(([, n]) => n > 1).map(([k]) => k)); };
@@ -228,7 +227,9 @@ export function evaluate(doc, opts = {}) {
     if (!isObj(d) || !str(d.id) || !str(d.owner) || !str(d.source) || dupDatasets.has(d.id)) R['pdg-inventory.dataset-declared'].raise('fail', at);
     if (!isObj(d)) return;
     const cls = arr(d.classes);
-    if (cls.length === 0 || !cls.every(c => classes.has(c))) R['pdg-inventory.class-declared'].raise('fail', at);
+    // Normalized matching. A recognized label missing from the vocabulary fails; an unrecognized (or non-string or empty) label is not-evaluated, never a pass.
+    if (cls.length === 0 || cls.some(c => labelKind(c) !== 'unexaminable' && !classes.has(c.trim().toLowerCase()))) R['pdg-inventory.class-declared'].raise('fail', at);
+    else if (cls.some(c => labelKind(c) === 'unexaminable')) R['pdg-inventory.class-declared'].raise('not-evaluated', at);
 
     const dp = arr(d.purposes);
     if (dp.length === 0 || !dp.every(p => purposes.has(p))) R['pdg-purpose.purpose-declared'].raise('fail', at);
