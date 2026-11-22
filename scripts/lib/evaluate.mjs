@@ -111,7 +111,7 @@ function shapeProblem(d) {
   const BAD = 'malformed entry in declarations';
   if ('basis' in d) {
     const b = d.basis;
-    if (!isObj(b) || !only(b, ['kind', 'noticeRef', 'consentRecordRef', 'withdrawalPath', 'overlays']) || !strs(b, ['kind', 'noticeRef', 'consentRecordRef'])) return BAD;
+    if (!isObj(b) || !only(b, ['kind', 'noticeRef', 'consentRecordRef', 'consentNotRelied', 'withdrawalPath', 'overlays']) || !strs(b, ['kind', 'noticeRef', 'consentRecordRef']) || ('consentNotRelied' in b && typeof b.consentNotRelied !== 'boolean')) return BAD;
     if ('overlays' in b && (!Array.isArray(b.overlays) || b.overlays.some(x => typeof x !== 'string'))) return BAD;
     if ('withdrawalPath' in b && (!isObj(b.withdrawalPath) || !only(b.withdrawalPath, ['mechanism', 'testEvidenceRef']) || !strs(b.withdrawalPath, ['mechanism', 'testEvidenceRef']))) return BAD;
   }
@@ -232,7 +232,7 @@ export function evaluate(doc, opts = {}) {
 
     // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
     // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
-    if (cls.includes('personal')) {
+    if (cls.some(c => c.trim().toLowerCase() === 'personal')) {
       const good = (ref, ruleId) => { const e = evById.get(ref); return !!e && e.ruleId === ruleId && usable(e, d.id); };
       const ruleRef = (ruleId, ref, ptr) => {
         if (ref === undefined) R[ruleId].raise('not-evaluated', ptr);
@@ -241,7 +241,7 @@ export function evaluate(doc, opts = {}) {
       const b = isObj(d.basis) ? d.basis : null, rk = isObj(d.risk) ? d.risk : null;
       ruleRef('pdg-basis.notice-evidenced', b ? b.noticeRef : undefined, `${at}/basis`);
       if (b && b.consentRecordRef !== undefined) ruleRef('pdg-basis.consent-record-evidenced', b.consentRecordRef, `${at}/basis`);
-      else if (!b || !str(b.kind)) R['pdg-basis.consent-record-evidenced'].raise('not-evaluated', `${at}/basis`);
+      else if (!b || b.consentNotRelied !== true) R['pdg-basis.consent-record-evidenced'].raise('not-evaluated', `${at}/basis`);
       const wp = b && isObj(b.withdrawalPath) ? b.withdrawalPath : null;
       if (!wp) R['pdg-basis.withdrawal-path-evidenced'].raise('not-evaluated', `${at}/basis`);
       else if (!str(wp.mechanism)) R['pdg-basis.withdrawal-path-evidenced'].raise('fail', `${at}/basis`);

@@ -436,7 +436,7 @@ test('personal dataset with no basis or risk declaration: every basis/risk rule 
   for (const id of BR) assert.equal(status(r, id), 'not-evaluated', id);
 });
 test('each single missing declaration alone prevents a passing overall verdict', () => {
-  const cuts = [d => delete d.datasets[0].basis.noticeRef, d => { delete d.datasets[0].basis.consentRecordRef; delete d.datasets[0].basis.kind; },
+  const cuts = [d => delete d.datasets[0].basis.noticeRef, d => { delete d.datasets[0].basis.consentRecordRef; },
     d => delete d.datasets[0].basis.withdrawalPath, d => delete d.datasets[0].risk.impactAnalysisRef, d => delete d.datasets[0].risk.reviewRef, d => delete d.datasets[0].risk.transferRestrictions];
   cuts.forEach((cut, i) => {
     const d = base(); cut(d);
@@ -480,5 +480,21 @@ test('gate 0: malformed or unknown basis/risk fields are refused without echoing
     assert.ok(r.gate0);
     assert.equal(r.verdict, null);
     assert.ok(!JSON.stringify(r).includes('SECRET-VALUE') && !JSON.stringify(r).includes('surprise'));
+  }
+});
+
+test('a basis.kind label alone never waives the consent evidence; only an explicit consentNotRelied declaration does', () => {
+  const a = base(); delete a.datasets[0].basis.consentRecordRef; a.datasets[0].basis.kind = 'consent';
+  assert.equal(status(run(a), 'pdg-basis.consent-record-evidenced'), 'not-evaluated');
+  assert.equal(run(a).verdict, 'REVIEW_REQUIRED');
+  const b = base(); delete b.datasets[0].basis.consentRecordRef; b.datasets[0].basis.consentNotRelied = true;
+  assert.equal(status(run(b), 'pdg-basis.consent-record-evidenced'), 'pass');
+  const c = base(); c.datasets[0].basis.consentNotRelied = 'yes';
+  assert.ok(run(c).gate0);
+});
+test('the personal class label is matched ignoring case and surrounding space', () => {
+  for (const label of ['Personal', ' PERSONAL ']) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    assert.equal(run(d).verdict, 'REVIEW_REQUIRED', label);
   }
 });
