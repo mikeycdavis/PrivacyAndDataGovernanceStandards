@@ -296,8 +296,9 @@ export function evaluate(doc, opts = {}) {
   if (naOk !== null) {
     const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
     const contradiction = datasets.length > 0;
-    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS, evaluatedAt: now,
-      note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : 'not-applicable on a declared and attested basis' };
+    const unrecognized = arr(doc.classes).some(c => labelKind(c) === 'unexaminable') || datasets.some(d => isObj(d) && arr(d.classes).some(c => labelKind(c) === 'unexaminable'));
+    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction || unrecognized ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction && !unrecognized ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.') || (unrecognized && BASIS_RISK.includes(x.ruleId))), limitations: LIMITATIONS, evaluatedAt: now,
+      note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : unrecognized ? 'not-applicable with an unrecognized class label requires review' : 'not-applicable on a declared and attested basis' };
   }
   const verdict = results.some(r => r.status === 'fail') ? 'FAIL'
     : results.some(r => r.status === 'not-evaluated') ? 'REVIEW_REQUIRED' : 'PASS';

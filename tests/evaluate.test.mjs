@@ -529,3 +529,12 @@ test('an unrecognized label in the top-level classes vocabulary also prevents a 
   const e = base(); e.datasets = []; e.classes = ['pii'];
   assert.notEqual(run(e).verdict, 'PASS');
 });
+test('an attested not-applicable claim cannot hide an unrecognized class label: REVIEW_REQUIRED, never NOT_APPLICABLE', () => {
+  for (const label of ['pii', '', 'personal-data']) {
+    const d = { schema: base().schema, applicability: { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } }, classes: [label], datasets: [], evidence: [], exceptions: [] };
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', JSON.stringify(label));
+  }
+  const ok = { schema: base().schema, applicability: { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } }, classes: ['public'], datasets: [], evidence: [], exceptions: [] };
+  assert.equal(run(ok).verdict, 'NOT_APPLICABLE');
+});
