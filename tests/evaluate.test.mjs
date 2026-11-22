@@ -199,8 +199,8 @@ test('fixtures contain only obviously synthetic values (reserved domains, no dig
 // ---- Codex review findings (exact head 3526e9f) ----
 const withIndef = (mut) => {
   const d = base(); d.datasets[0].retention.period = 'indefinite';
-  d.evidence.push({ ...structuredClone(d.evidence[1]), id: 'E2' }); mut(d.evidence[2]);
-  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E2', expiresAt: '2027-01-01T00:00:00Z' }];
+  d.evidence.push({ ...structuredClone(d.evidence[1]), id: 'EX' }); mut(d.evidence[d.evidence.length - 1]);
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'EX', expiresAt: '2027-01-01T00:00:00Z' }];
   return d;
 };
 test('exception evidence must be usable: contradicting, expired, future or other-dataset evidence grants nothing', () => {
@@ -425,4 +425,57 @@ test('a current contradicting envelope fails its rule even when unreferenced; re
   assert.equal(r.evaluatedAt, NOW);
   const old = base(); const o = structuredClone(old.evidence[0]); o.id = 'E9'; o.result = 'contradicts'; o.validUntil = '2025-02-01T00:00:00Z'; o.retrievedAt = '2025-01-01T00:00:00Z'; old.evidence.push(o);
   assert.equal(run(old).verdict, 'PASS');
+});
+
+// ---- Proposed basis and risk declarations: a missing declaration can never pass ----
+const BR = ['pdg-basis.notice-evidenced', 'pdg-basis.consent-record-evidenced', 'pdg-basis.withdrawal-path-evidenced', 'pdg-risk.impact-analysis-evidenced', 'pdg-risk.review-recorded', 'pdg-risk.transfer-restriction-declared'];
+test('personal dataset with no basis or risk declaration: every basis/risk rule is not-evaluated and the verdict is REVIEW_REQUIRED, never PASS', () => {
+  const d = base(); delete d.datasets[0].basis; delete d.datasets[0].risk;
+  const r = run(d);
+  assert.equal(r.verdict, 'REVIEW_REQUIRED');
+  for (const id of BR) assert.equal(status(r, id), 'not-evaluated', id);
+});
+test('each single missing declaration alone prevents a passing overall verdict', () => {
+  const cuts = [d => delete d.datasets[0].basis.noticeRef, d => { delete d.datasets[0].basis.consentRecordRef; delete d.datasets[0].basis.kind; },
+    d => delete d.datasets[0].basis.withdrawalPath, d => delete d.datasets[0].risk.impactAnalysisRef, d => delete d.datasets[0].risk.reviewRef, d => delete d.datasets[0].risk.transferRestrictions];
+  cuts.forEach((cut, i) => {
+    const d = base(); cut(d);
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', `cut ${i}`);
+    assert.equal(status(r, BR[i]), 'not-evaluated', BR[i]);
+  });
+});
+test('a reference that does not resolve to current supporting evidence fails; agent output is never a review', () => {
+  const ev = (d, id) => d.evidence.find(e => e.id === id);
+  for (const mut of [d => { d.datasets[0].basis.noticeRef = 'nope'; }, d => { ev(d, 'N2').validUntil = '2026-11-20T00:00:00Z'; ev(d, 'N2').retrievedAt = '2026-11-01T00:00:00Z'; },
+    d => { ev(d, 'N2').ruleId = 'pdg-basis.consent-record-evidenced'; }, d => { ev(d, 'N2').result = 'inconclusive'; }]) {
+    const d = base(); mut(d);
+    const r = run(d);
+    assert.equal(status(r, 'pdg-basis.notice-evidenced'), 'fail');
+    assert.notEqual(r.verdict, 'PASS');
+  }
+  const a = base(); const e6 = a.evidence.find(e => e.id === 'N6'); e6.surface = 'ingested'; e6.evidence = { kind: 'automated' }; e6.producer = { kind: 'agent', name: 'synthetic-agent', version: '1.0.0' };
+  const r = run(a);
+  assert.equal(status(r, 'pdg-risk.review-recorded'), 'fail');
+  assert.equal(r.verdict, 'FAIL');
+});
+test('transfer restrictions declared false need no statement; declared true needs usable evidence', () => {
+  const a = base(); a.datasets[0].risk.transferRestrictions = { declared: false };
+  assert.equal(run(a).verdict, 'PASS');
+  const b = base(); delete b.datasets[0].risk.transferRestrictions.statementRef;
+  assert.equal(status(run(b), 'pdg-risk.transfer-restriction-declared'), 'fail');
+});
+test('a dataset that declares no personal class is not asked for basis or risk', () => {
+  const d = base(); d.datasets[0].classes = ['internal']; delete d.datasets[0].basis; delete d.datasets[0].risk;
+  const r = run(d);
+  for (const id of BR) assert.equal(status(r, id), 'pass', id);
+});
+test('gate 0: malformed or unknown basis/risk fields are refused without echoing them', () => {
+  for (const mut of [d => { d.datasets[0].basis.surprise = 'SECRET-VALUE'; }, d => { d.datasets[0].basis = []; }, d => { d.datasets[0].risk.transferRestrictions.declared = 'yes'; }, d => { d.datasets[0].basis.overlays = [1]; }]) {
+    const d = base(); mut(d);
+    const r = run(d);
+    assert.ok(r.gate0);
+    assert.equal(r.verdict, null);
+    assert.ok(!JSON.stringify(r).includes('SECRET-VALUE') && !JSON.stringify(r).includes('surprise'));
+  }
 });

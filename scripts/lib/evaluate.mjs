@@ -29,6 +29,8 @@ export const RULE_IDS = [
   'pdg-inventory.dataset-declared', 'pdg-inventory.class-declared',
   'pdg-purpose.purpose-declared', 'pdg-purpose.field-use-mapped',
   'pdg-lifecycle.retention-declared', 'pdg-lifecycle.backup-statement', 'pdg-lifecycle.deletion-evidenced',
+  'pdg-basis.notice-evidenced', 'pdg-basis.consent-record-evidenced', 'pdg-basis.withdrawal-path-evidenced',
+  'pdg-risk.impact-analysis-evidenced', 'pdg-risk.review-recorded', 'pdg-risk.transfer-restriction-declared',
   'pdg-evidence.envelope-valid', 'pdg-evidence.exception-complete',
 ];
 
@@ -92,9 +94,34 @@ function gate0(doc) {
   }
   if (arr(doc.purposes).some(p => !only(p, ['id', 'text']))) return 'unknown field in declarations';
   for (const d of arr(doc.datasets)) {
-    if (!only(d, ['id', 'owner', 'source', 'classes', 'purposes', 'fields', 'retention'])) return 'unknown field in declarations';
+    if (!only(d, ['id', 'owner', 'source', 'classes', 'purposes', 'fields', 'retention', 'basis', 'risk'])) return 'unknown field in declarations';
+    const shape = shapeProblem(d);
+    if (shape) return shape;
     if (isObj(d) && Array.isArray(d.fields) && d.fields.some(f => !only(f, ['name', 'purposeRefs']))) return 'unknown field in declarations';
     if (isObj(d) && isObj(d.retention) && !only(d.retention, ['period', 'trigger', 'mechanism', 'backupStatement', 'testEvidenceRef'])) return 'unknown field in declarations';
+  }
+  return null;
+}
+
+// Proposed basis and risk declarations hold only references to evidence and owner-chosen labels; nothing here is frozen.
+function shapeProblem(d) {
+  const only = (o, keys) => Object.keys(o).every(k => keys.includes(k));
+  const strs = (o, keys) => keys.every(k => !(k in o) || typeof o[k] === 'string');
+  if (!isObj(d)) return null;
+  const BAD = 'malformed entry in declarations';
+  if ('basis' in d) {
+    const b = d.basis;
+    if (!isObj(b) || !only(b, ['kind', 'noticeRef', 'consentRecordRef', 'withdrawalPath', 'overlays']) || !strs(b, ['kind', 'noticeRef', 'consentRecordRef'])) return BAD;
+    if ('overlays' in b && (!Array.isArray(b.overlays) || b.overlays.some(x => typeof x !== 'string'))) return BAD;
+    if ('withdrawalPath' in b && (!isObj(b.withdrawalPath) || !only(b.withdrawalPath, ['mechanism', 'testEvidenceRef']) || !strs(b.withdrawalPath, ['mechanism', 'testEvidenceRef']))) return BAD;
+  }
+  if ('risk' in d) {
+    const r = d.risk;
+    if (!isObj(r) || !only(r, ['impactAnalysisRef', 'reviewRef', 'transferRestrictions']) || !strs(r, ['impactAnalysisRef', 'reviewRef'])) return BAD;
+    if ('transferRestrictions' in r) {
+      const t = r.transferRestrictions;
+      if (!isObj(t) || !only(t, ['declared', 'statementRef']) || typeof t.declared !== 'boolean' || !strs(t, ['statementRef'])) return BAD;
+    }
   }
   return null;
 }
@@ -159,7 +186,7 @@ export function evaluate(doc, opts = {}) {
   const R = Object.fromEntries(RULE_IDS.map(id => [id, new Acc(id)]));
   if (arr(doc.purposes).some(p => !str(p.id) || !str(p.text))) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
   if (dupPurposes) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
-  const noData = () => { for (const id of RULE_IDS.slice(0, 7)) R[id].raise('not-evaluated', '/datasets'); };
+  const noData = () => { for (const id of RULE_IDS.filter(x => !x.startsWith('pdg-evidence.'))) R[id].raise('not-evaluated', '/datasets'); };
 
   // Exceptions
   const excProblem = x => {
@@ -202,6 +229,33 @@ export function evaluate(doc, opts = {}) {
       const refs = isObj(f) ? arr(f.purposeRefs) : [];
       if (!isObj(f) || !str(f.name) || refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
     });
+
+    // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
+    // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
+    if (cls.includes('personal')) {
+      const good = (ref, ruleId) => { const e = evById.get(ref); return !!e && e.ruleId === ruleId && usable(e, d.id); };
+      const ruleRef = (ruleId, ref, ptr) => {
+        if (ref === undefined) R[ruleId].raise('not-evaluated', ptr);
+        else if (!good(ref, ruleId)) R[ruleId].raise('fail', ptr);
+      };
+      const b = isObj(d.basis) ? d.basis : null, rk = isObj(d.risk) ? d.risk : null;
+      ruleRef('pdg-basis.notice-evidenced', b ? b.noticeRef : undefined, `${at}/basis`);
+      if (b && b.consentRecordRef !== undefined) ruleRef('pdg-basis.consent-record-evidenced', b.consentRecordRef, `${at}/basis`);
+      else if (!b || !str(b.kind)) R['pdg-basis.consent-record-evidenced'].raise('not-evaluated', `${at}/basis`);
+      const wp = b && isObj(b.withdrawalPath) ? b.withdrawalPath : null;
+      if (!wp) R['pdg-basis.withdrawal-path-evidenced'].raise('not-evaluated', `${at}/basis`);
+      else if (!str(wp.mechanism)) R['pdg-basis.withdrawal-path-evidenced'].raise('fail', `${at}/basis`);
+      else ruleRef('pdg-basis.withdrawal-path-evidenced', wp.testEvidenceRef, `${at}/basis`);
+      ruleRef('pdg-risk.impact-analysis-evidenced', rk ? rk.impactAnalysisRef : undefined, `${at}/risk`);
+      if (!rk || rk.reviewRef === undefined) R['pdg-risk.review-recorded'].raise('not-evaluated', `${at}/risk`);
+      else {
+        const rv = evById.get(rk.reviewRef);
+        if (!(good(rk.reviewRef, 'pdg-risk.review-recorded') && rv.evidence.kind === 'manual' && ['human', 'legal'].includes(rv.producer.kind))) R['pdg-risk.review-recorded'].raise('fail', `${at}/risk`);
+      }
+      const t = rk ? rk.transferRestrictions : undefined;
+      if (!isObj(t)) R['pdg-risk.transfer-restriction-declared'].raise('not-evaluated', `${at}/risk`);
+      else if (t.declared === true && !(typeof t.statementRef === 'string' && good(t.statementRef, 'pdg-risk.transfer-restriction-declared'))) R['pdg-risk.transfer-restriction-declared'].raise('fail', `${at}/risk`);
+    }
 
     const ret = d.retention;
     if (!isObj(ret)) {

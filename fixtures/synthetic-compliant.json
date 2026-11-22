@@ -50,6 +50,23 @@
         "mechanism": "scheduled delete job",
         "backupStatement": "Backups expire after 35 days; deleted rows leave backups within that window",
         "testEvidenceRef": "E1"
+      },
+      "basis": {
+        "kind": "owner-declared label (synthetic)",
+        "noticeRef": "N2",
+        "consentRecordRef": "N3",
+        "withdrawalPath": {
+          "mechanism": "account settings toggle",
+          "testEvidenceRef": "N4"
+        }
+      },
+      "risk": {
+        "impactAnalysisRef": "N5",
+        "reviewRef": "N6",
+        "transferRestrictions": {
+          "declared": true,
+          "statementRef": "N7"
+        }
       }
     }
   ],
@@ -100,6 +117,162 @@
       "retention": {
         "location": "evidence/e1.json",
         "hash": "c2e0f704333576c4e4e7c5607b155405789725d196815a02d63e135a4b32257d"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N2",
+      "ruleId": "pdg-basis.notice-evidenced",
+      "datasetRef": "orders",
+      "subject": "notice exists, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n2.json",
+        "hash": "02a15e1d3f747dde1697318a24b6ba1659a8b8d8a877ebe0b55662e9c0063158"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N3",
+      "ruleId": "pdg-basis.consent-record-evidenced",
+      "datasetRef": "orders",
+      "subject": "consent record mechanism, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n3.json",
+        "hash": "805b6d206a141eacbb3e5b68f85ee97bccf2214125a7839865dae2581eaedcfa"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N4",
+      "ruleId": "pdg-basis.withdrawal-path-evidenced",
+      "datasetRef": "orders",
+      "subject": "withdrawal path test, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n4.json",
+        "hash": "00705cfae2859e5032e1814b0533193a66059fb5df73bda63b6cf669565a3ae6"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N5",
+      "ruleId": "pdg-risk.impact-analysis-evidenced",
+      "datasetRef": "orders",
+      "subject": "impact analysis exists, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n5.json",
+        "hash": "a3c69af40775a1c6f74b58e362613b76f6c5198a0baeff18e91906c4173301fc"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N6",
+      "ruleId": "pdg-risk.review-recorded",
+      "datasetRef": "orders",
+      "subject": "human review record, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "attested",
+      "evidence": {
+        "kind": "manual"
+      },
+      "producer": {
+        "kind": "human",
+        "name": "synthetic-reviewer",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n6.json",
+        "hash": "eb6594cdce5527c16b122a66f2826628a4d486e6939aa2987ddf49e27b37b575"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "N7",
+      "ruleId": "pdg-risk.transfer-restriction-declared",
+      "datasetRef": "orders",
+      "subject": "transfer restriction statement, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/n7.json",
+        "hash": "06dd2bb792988de515d6c7367f3683fd6cbd7124aa664c5608e44281a0935f26"
       },
       "result": "supports",
       "limitations": [
