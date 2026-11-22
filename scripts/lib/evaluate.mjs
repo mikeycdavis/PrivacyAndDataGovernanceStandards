@@ -254,7 +254,7 @@ export function evaluate(doc, opts = {}) {
       }
       const t = rk ? rk.transferRestrictions : undefined;
       if (!isObj(t)) R['pdg-risk.transfer-restriction-declared'].raise('not-evaluated', `${at}/risk`);
-      else if (t.declared === true && !(typeof t.statementRef === 'string' && good(t.statementRef, 'pdg-risk.transfer-restriction-declared'))) R['pdg-risk.transfer-restriction-declared'].raise('fail', `${at}/risk`);
+      else if ((t.declared === true || t.statementRef !== undefined) && !(typeof t.statementRef === 'string' && good(t.statementRef, 'pdg-risk.transfer-restriction-declared'))) R['pdg-risk.transfer-restriction-declared'].raise('fail', `${at}/risk`);
     }
 
     const ret = d.retention;

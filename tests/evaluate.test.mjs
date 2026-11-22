@@ -464,6 +464,9 @@ test('transfer restrictions declared false need no statement; declared true need
   assert.equal(run(a).verdict, 'PASS');
   const b = base(); delete b.datasets[0].risk.transferRestrictions.statementRef;
   assert.equal(status(run(b), 'pdg-risk.transfer-restriction-declared'), 'fail');
+  const c = base(); c.datasets[0].risk.transferRestrictions = { declared: false, statementRef: 'missing' };
+  assert.equal(status(run(c), 'pdg-risk.transfer-restriction-declared'), 'fail');
+  assert.notEqual(run(c).verdict, 'PASS');
 });
 test('a dataset that declares no personal class is not asked for basis or risk', () => {
   const d = base(); d.datasets[0].classes = ['internal']; delete d.datasets[0].basis; delete d.datasets[0].risk;
