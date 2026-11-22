@@ -1,0 +1,27 @@
+# First slice (proposed, not frozen)
+
+Status: Proposed. Criteria are not frozen (ADR 0001, D-13). Nothing here is a legal conclusion.
+
+Covers: inventory and classification, purpose and minimization, retention and deletion, evidence and exception envelope.
+Machine rules: `rules/first-slice.json`. Evaluator: `node scripts/evaluate.mjs <file> [--now ISO]`. Input schema: `pdg-declarations/0.1.0-proposed`.
+
+## What a clean result means
+Only that the declared, examinable surface produced no finding. It does not show the declarations are true or complete, and it is not legal compliance.
+
+## Behaviour
+- Gate 0: invalid JSON, wrong schema version, an unknown field or wrongly typed entry anywhere in the declarations (top level, applicability, purposes, datasets, fields, retention) is refused (exit 2), with no verdict. A bad or missing `--now` is also refused.
+- Applicability absent: INDETERMINATE. Not-applicable only with a declared basis and a human or legal attestation; otherwise REVIEW_REQUIRED. A not-applicable claim that still declares datasets is a contradiction (REVIEW_REQUIRED). Invalid evidence or exceptions give FAIL under every applicability state.
+- A missing checked list or reference (dataset list, field list, retention test evidence) is `not-evaluated`, never pass; a missing required attribute of a declared entry (owner, source, field name) is `fail`. PASS shows only that declared evidence envelopes were well-formed, current and bound to the dataset; it does not show that the retained artifact exists or is genuine. Placeholder hashes (a block of up to 16 characters repeated) are refused, an exception may expire at most 400 days after the evaluation time, evidence may be valid for at most 1830 days after retrieval, and finite retention periods over about 100 years are treated as malformed (use an exception for indefinite retention). Indefinite retention needs a complete, unexpired exception.
+- Exceptions: the referenced evidence must be a human or legal attestation (never tool or agent output), bound to the same dataset and rule, and unexpired. Attestation is not accepted alongside `declared: true`. A not-applicable claim that also carries evidence or datasets fails or needs review.
+- Evidence: unknown fields, `live-platform`, an unknown rule or dataset reference all fail `pdg-evidence.envelope-valid` (FAIL, not a gate 0 refusal); agent or tool output is never an attestation or legal review; limitations are mandatory.
+- Findings carry a rule ID and index-only pointer. Declared values, ids and unknown keys are never echoed.
+
+## Boundaries (D-15, D-16)
+AIStandards owns privacy controls for prompts, traces and eval sets; PDG owns the generic lifecycle and evidence contract.
+Android owns SDK and permission inventories and extends the shared data-inventory contract. Reciprocal edits in those repositories are tracked there, not made here.
+
+## Retention period profile
+Periods use a restricted ISO 8601 profile: integer Y/M/D/H/M/S designators, or a single integer-week form (`P2W`). Zero periods, week-mixed forms and fractional values are not accepted; `indefinite` needs a complete, unexpired exception.
+
+- The evaluation time (`--now`) is caller-supplied for reproducibility; a clock set in the past makes expired evidence look current. Reports state the time used, and CI must pass the real time.
+- `pdg-evidence.envelope-valid` checks structure and attribution only. Currency (retrieved by the evaluation time, unexpired) is enforced where an envelope is relied on, that is by deletion evidence and exceptions. An unreferenced stale envelope is not itself a finding and supports nothing. A current (retrieved, unexpired), well-formed envelope with `result: contradicts` bound to a declared dataset and a first-slice rule fails that rule even when nothing references it. Every verdict object carries `evaluatedAt`, the evaluation time used (absent on a refused evaluation time).

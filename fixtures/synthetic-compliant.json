@@ -1,0 +1,111 @@
+{
+  "schema": "pdg-declarations/0.1.0-proposed",
+  "applicability": {
+    "declared": true
+  },
+  "classes": [
+    "public",
+    "internal",
+    "personal"
+  ],
+  "purposes": [
+    {
+      "id": "P1",
+      "text": "Send order status messages to the customer"
+    },
+    {
+      "id": "P2",
+      "text": "Keep accounting records for the order"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "orders",
+      "owner": "team-example",
+      "source": "collected from the synthetic customer form",
+      "classes": [
+        "personal"
+      ],
+      "purposes": [
+        "P1",
+        "P2"
+      ],
+      "fields": [
+        {
+          "name": "contact_email",
+          "purposeRefs": [
+            "P1"
+          ]
+        },
+        {
+          "name": "order_total",
+          "purposeRefs": [
+            "P2"
+          ]
+        }
+      ],
+      "retention": {
+        "period": "P2Y",
+        "trigger": "order closed",
+        "mechanism": "scheduled delete job",
+        "backupStatement": "Backups expire after 35 days; deleted rows leave backups within that window",
+        "testEvidenceRef": "E1"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "ruleId": "pdg-lifecycle.deletion-evidenced",
+      "datasetRef": "orders",
+      "subject": "orders delete job, synthetic test run",
+      "scope": "synthetic fixture only",
+      "surface": "ingested",
+      "evidence": {
+        "kind": "automated"
+      },
+      "producer": {
+        "kind": "tool",
+        "name": "example-test-runner",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/e1.json",
+        "hash": "c2e0f704333576c4e4e7c5607b155405789725d196815a02d63e135a4b32257d"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    },
+    {
+      "id": "E3",
+      "ruleId": "pdg-lifecycle.retention-declared",
+      "datasetRef": "orders",
+      "subject": "orders retention exception support, synthetic",
+      "scope": "synthetic fixture only",
+      "surface": "attested",
+      "evidence": {
+        "kind": "manual"
+      },
+      "producer": {
+        "kind": "human",
+        "name": "example-reviewer",
+        "version": "1.0.0"
+      },
+      "retrievedAt": "2026-11-01T00:00:00Z",
+      "validUntil": "2027-11-01T00:00:00Z",
+      "retention": {
+        "location": "evidence/e1.json",
+        "hash": "c2e0f704333576c4e4e7c5607b155405789725d196815a02d63e135a4b32257d"
+      },
+      "result": "supports",
+      "limitations": [
+        "Synthetic data only; does not show production behavior"
+      ]
+    }
+  ],
+  "exceptions": []
+}
