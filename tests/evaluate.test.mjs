@@ -493,7 +493,7 @@ test('a basis.kind label alone never waives the consent evidence; only an explic
   assert.ok(run(c).gate0);
 });
 test('the personal class label is matched ignoring case and surrounding space', () => {
-  for (const label of ['Personal', ' PERSONAL ']) {
+  for (const label of ['Personal', ' PERSONAL ', 'pers' + String.fromCharCode(0x200b) + 'onal', 'personal' + String.fromCharCode(0), 'personal'.toUpperCase().replace('P', String.fromCharCode(0xff30))]) {
     const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
     assert.equal(run(d).verdict, 'REVIEW_REQUIRED', label);
   }

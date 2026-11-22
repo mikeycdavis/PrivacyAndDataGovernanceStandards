@@ -126,6 +126,10 @@ function shapeProblem(d) {
   return null;
 }
 
+// Class label match ignores case, surrounding space, and invisible format/control characters (NFKC-folded); other labels are not examined.
+const CF = new RegExp('[' + String.fromCharCode(92) + 'p{Cf}' + String.fromCharCode(92) + 'p{Cc}]', 'gu');
+const isPersonalLabel = c => c.normalize('NFKC').replace(CF, '').trim().toLowerCase() === 'personal';
+
 function arr(v) { return Array.isArray(v) ? v : []; }
 
 function envelopeProblems(e) {
@@ -232,7 +236,7 @@ export function evaluate(doc, opts = {}) {
 
     // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
     // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
-    if (cls.some(c => c.trim().toLowerCase() === 'personal')) {
+    if (cls.some(isPersonalLabel)) {
       const good = (ref, ruleId) => { const e = evById.get(ref); return !!e && e.ruleId === ruleId && usable(e, d.id); };
       const ruleRef = (ruleId, ref, ptr) => {
         if (ref === undefined) R[ruleId].raise('not-evaluated', ptr);
