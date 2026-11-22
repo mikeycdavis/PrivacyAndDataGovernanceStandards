@@ -477,7 +477,7 @@ test('a dataset that declares no personal class is not asked for basis or risk',
   for (const id of BR) assert.equal(status(r, id), 'pass', id);
 });
 test('gate 0: malformed or unknown basis/risk fields are refused without echoing them', () => {
-  for (const mut of [d => { d.datasets[0].basis.surprise = 'SECRET-VALUE'; }, d => { d.datasets[0].basis = []; }, d => { d.datasets[0].risk.transferRestrictions.declared = 'yes'; }, d => { d.datasets[0].basis.overlays = [1]; }]) {
+  for (const mut of [d => { d.datasets[0].basis.surprise = 'SECRET-VALUE'; }, d => { d.datasets[0].basis = []; }, d => { d.datasets[0].risk.transferRestrictions.declared = 'yes'; }, d => { d.datasets[0].basis.overlays = ['x']; }, d => { d.datasets[0].basis.kind = 'consent'; }]) {
     const d = base(); mut(d);
     const r = run(d);
     assert.ok(r.gate0);
@@ -486,8 +486,8 @@ test('gate 0: malformed or unknown basis/risk fields are refused without echoing
   }
 });
 
-test('a basis.kind label alone never waives the consent evidence; only an explicit consentNotRelied declaration does', () => {
-  const a = base(); delete a.datasets[0].basis.consentRecordRef; a.datasets[0].basis.kind = 'consent';
+test('only an explicit consentNotRelied declaration waives the consent evidence', () => {
+  const a = base(); delete a.datasets[0].basis.consentRecordRef;
   assert.equal(status(run(a), 'pdg-basis.consent-record-evidenced'), 'not-evaluated');
   assert.equal(run(a).verdict, 'REVIEW_REQUIRED');
   const b = base(); delete b.datasets[0].basis.consentRecordRef; b.datasets[0].basis.consentNotRelied = true;

@@ -1,7 +1,7 @@
-// Pure evaluator for pdg-declarations/0.1.0-proposed (first slice). Nothing here is frozen.
+// Pure evaluator for pdg-declarations/0.1.0 (freeze CANDIDATE; not frozen until the owner decides).
 // Findings carry only a rule ID and an index-only JSON pointer. Declared values, ids and unknown keys are never echoed.
 
-export const SCHEMA = 'pdg-declarations/0.1.0-proposed';
+export const SCHEMA = 'pdg-declarations/0.1.0';
 const TOP_KEYS = ['schema', 'applicability', 'classes', 'purposes', 'datasets', 'evidence', 'exceptions'];
 const ENVELOPE_KEYS = ['id', 'ruleId', 'datasetRef', 'subject', 'scope', 'surface', 'evidence', 'producer', 'retrievedAt', 'validUntil', 'retention', 'result', 'limitations'];
 const SURFACES = ['static', 'ingested', 'attested'];
@@ -104,7 +104,7 @@ function gate0(doc) {
   return null;
 }
 
-// Proposed basis and risk declarations hold only references to evidence and owner-chosen labels; nothing here is frozen.
+// Basis and risk declarations hold only references to evidence and an explicit consent-not-relied flag. basis.kind and basis.overlays were removed: no rule consumes them.
 function shapeProblem(d) {
   const only = (o, keys) => Object.keys(o).every(k => keys.includes(k));
   const strs = (o, keys) => keys.every(k => !(k in o) || typeof o[k] === 'string');
@@ -112,8 +112,7 @@ function shapeProblem(d) {
   const BAD = 'malformed entry in declarations';
   if ('basis' in d) {
     const b = d.basis;
-    if (!isObj(b) || !only(b, ['kind', 'noticeRef', 'consentRecordRef', 'consentNotRelied', 'withdrawalPath', 'overlays']) || !strs(b, ['kind', 'noticeRef', 'consentRecordRef']) || ('consentNotRelied' in b && typeof b.consentNotRelied !== 'boolean')) return BAD;
-    if ('overlays' in b && (!Array.isArray(b.overlays) || b.overlays.some(x => typeof x !== 'string'))) return BAD;
+    if (!isObj(b) || !only(b, ['noticeRef', 'consentRecordRef', 'consentNotRelied', 'withdrawalPath']) || !strs(b, ['noticeRef', 'consentRecordRef']) || ('consentNotRelied' in b && typeof b.consentNotRelied !== 'boolean')) return BAD;
     if ('withdrawalPath' in b && (!isObj(b.withdrawalPath) || !only(b.withdrawalPath, ['mechanism', 'testEvidenceRef']) || !strs(b.withdrawalPath, ['mechanism', 'testEvidenceRef']))) return BAD;
   }
   if ('risk' in d) {
@@ -240,7 +239,7 @@ export function evaluate(doc, opts = {}) {
       if (!isObj(f) || !str(f.name) || refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
     });
 
-    // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
+    // Basis and risk rules (freeze candidate). A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
     // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
     const kinds = cls.map(labelKind);
     if (kinds.includes('unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', at);
