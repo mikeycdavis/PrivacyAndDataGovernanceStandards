@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pdg-declarations/0.1.0",
+  "title": "PDG declarations 0.1.0 (freeze candidate)",
+  "description": "Gate 0 structure only. This is not a legal artifact: no law is evaluated and rule semantics are judged by the evaluator. Absence of a finding is not evidence of compliance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema"
+  ],
+  "properties": {
+    "schema": {
+      "const": "pdg-declarations/0.1.0"
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "declared": {},
+        "attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "basis": {
+              "type": "string"
+            },
+            "attestedAt": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "if": {
+        "required": [
+          "declared"
+        ],
+        "properties": {
+          "declared": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "attestation"
+          ]
+        }
+      }
+    },
+    "classes": {
+      "type": "array",
+      "description": "Vocabulary labels; label recognition is a rule concern (personal, public, internal)."
+    },
+    "purposes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "classes": {
+            "type": "array"
+          },
+          "purposes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "purposeRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "retention": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "period": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string"
+              },
+              "mechanism": {
+                "type": "string"
+              },
+              "backupStatement": {
+                "type": "string"
+              },
+              "testEvidenceRef": {
+                "type": "string"
+              }
+            }
+          },
+          "basis": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "noticeRef": {
+                "type": "string"
+              },
+              "consentRecordRef": {
+                "type": "string"
+              },
+              "consentNotRelied": {
+                "type": "boolean",
+                "description": "The only waiver of consent-record evidence."
+              },
+              "withdrawalPath": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mechanism": {
+                    "type": "string"
+                  },
+                  "testEvidenceRef": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "risk": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "impactAnalysisRef": {
+                "type": "string"
+              },
+              "reviewRef": {
+                "type": "string"
+              },
+              "transferRestrictions": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "declared": {
+                    "type": "boolean"
+                  },
+                  "statementRef": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "declared"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

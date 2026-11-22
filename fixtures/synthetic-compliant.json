@@ -1,5 +1,5 @@
 {
-  "schema": "pdg-declarations/0.1.0-proposed",
+  "schema": "pdg-declarations/0.1.0",
   "applicability": {
     "declared": true
   },
@@ -52,7 +52,6 @@
         "testEvidenceRef": "E1"
       },
       "basis": {
-        "kind": "owner-declared label (synthetic)",
         "noticeRef": "N2",
         "consentRecordRef": "N3",
         "withdrawalPath": {
