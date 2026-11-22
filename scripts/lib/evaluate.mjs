@@ -29,8 +29,12 @@ export const RULE_IDS = [
   'pdg-inventory.dataset-declared', 'pdg-inventory.class-declared',
   'pdg-purpose.purpose-declared', 'pdg-purpose.field-use-mapped',
   'pdg-lifecycle.retention-declared', 'pdg-lifecycle.backup-statement', 'pdg-lifecycle.deletion-evidenced',
+  'pdg-basis.notice-evidenced', 'pdg-basis.consent-record-evidenced', 'pdg-basis.withdrawal-path-evidenced',
+  'pdg-risk.impact-analysis-evidenced', 'pdg-risk.review-recorded', 'pdg-risk.transfer-restriction-declared',
   'pdg-evidence.envelope-valid', 'pdg-evidence.exception-complete',
 ];
+
+const BASIS_RISK = RULE_IDS.filter(x => x.startsWith('pdg-basis.') || x.startsWith('pdg-risk.'));
 
 export const LIMITATIONS = [
   'This is not a legal conclusion and no law or regulation was evaluated.',
@@ -64,7 +68,6 @@ function gate0(doc) {
   for (const k of ['classes', 'purposes', 'datasets', 'evidence', 'exceptions']) {
     if (k in doc && !Array.isArray(doc[k])) return `${k} must be an array`;
   }
-  if (arr(doc.classes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
   for (const k of ['purposes', 'datasets', 'evidence', 'exceptions']) if (arr(doc[k]).some(x => !isObj(x))) return 'malformed entry in declarations';
   if (arr(doc.datasets).some(d => Array.isArray(d.fields) && d.fields.some(f => !isObj(f)))) return 'malformed entry in declarations';
   if ('applicability' in doc) {
@@ -74,7 +77,7 @@ function gate0(doc) {
   }
   for (const d of arr(doc.datasets)) {
     if (('classes' in d && !Array.isArray(d.classes)) || ('purposes' in d && !Array.isArray(d.purposes)) || ('fields' in d && !Array.isArray(d.fields)) || ('retention' in d && !isObj(d.retention))) return 'malformed entry in declarations';
-    if (arr(d.classes).some(c => typeof c !== 'string') || arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
+    if (arr(d.purposes).some(c => typeof c !== 'string')) return 'malformed entry in declarations';
     if (arr(d.fields).some(f => 'purposeRefs' in f && (!Array.isArray(f.purposeRefs) || f.purposeRefs.some(x => typeof x !== 'string')))) return 'malformed entry in declarations';
   }
   const bad = (o, keys) => isObj(o) && keys.some(k => k in o && typeof o[k] !== 'string');
@@ -92,12 +95,42 @@ function gate0(doc) {
   }
   if (arr(doc.purposes).some(p => !only(p, ['id', 'text']))) return 'unknown field in declarations';
   for (const d of arr(doc.datasets)) {
-    if (!only(d, ['id', 'owner', 'source', 'classes', 'purposes', 'fields', 'retention'])) return 'unknown field in declarations';
+    if (!only(d, ['id', 'owner', 'source', 'classes', 'purposes', 'fields', 'retention', 'basis', 'risk'])) return 'unknown field in declarations';
+    const shape = shapeProblem(d);
+    if (shape) return shape;
     if (isObj(d) && Array.isArray(d.fields) && d.fields.some(f => !only(f, ['name', 'purposeRefs']))) return 'unknown field in declarations';
     if (isObj(d) && isObj(d.retention) && !only(d.retention, ['period', 'trigger', 'mechanism', 'backupStatement', 'testEvidenceRef'])) return 'unknown field in declarations';
   }
   return null;
 }
+
+// Proposed basis and risk declarations hold only references to evidence and owner-chosen labels; nothing here is frozen.
+function shapeProblem(d) {
+  const only = (o, keys) => Object.keys(o).every(k => keys.includes(k));
+  const strs = (o, keys) => keys.every(k => !(k in o) || typeof o[k] === 'string');
+  if (!isObj(d)) return null;
+  const BAD = 'malformed entry in declarations';
+  if ('basis' in d) {
+    const b = d.basis;
+    if (!isObj(b) || !only(b, ['kind', 'noticeRef', 'consentRecordRef', 'consentNotRelied', 'withdrawalPath', 'overlays']) || !strs(b, ['kind', 'noticeRef', 'consentRecordRef']) || ('consentNotRelied' in b && typeof b.consentNotRelied !== 'boolean')) return BAD;
+    if ('overlays' in b && (!Array.isArray(b.overlays) || b.overlays.some(x => typeof x !== 'string'))) return BAD;
+    if ('withdrawalPath' in b && (!isObj(b.withdrawalPath) || !only(b.withdrawalPath, ['mechanism', 'testEvidenceRef']) || !strs(b.withdrawalPath, ['mechanism', 'testEvidenceRef']))) return BAD;
+  }
+  if ('risk' in d) {
+    const r = d.risk;
+    if (!isObj(r) || !only(r, ['impactAnalysisRef', 'reviewRef', 'transferRestrictions']) || !strs(r, ['impactAnalysisRef', 'reviewRef'])) return BAD;
+    if ('transferRestrictions' in r) {
+      const t = r.transferRestrictions;
+      if (!isObj(t) || !only(t, ['declared', 'statementRef']) || typeof t.declared !== 'boolean' || !strs(t, ['statementRef'])) return BAD;
+    }
+  }
+  return null;
+}
+
+// Class labels: the contract recognises exactly public, internal and personal (trimmed, lower-cased); personal is the canonical classification and no alias is defined.
+// Any other label (pii, personal-data, invisible, combining, lookalike or non-ASCII spellings) is unrecognized and makes the basis/risk rules not-evaluated (REVIEW_REQUIRED), never a pass.
+const KNOWN_LABELS = ['public', 'internal'];
+const labelKind = c => { if (typeof c !== 'string') return 'unexaminable'; const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : KNOWN_LABELS.includes(t) ? 'other' : 'unexaminable'; };
 
 function arr(v) { return Array.isArray(v) ? v : []; }
 
@@ -141,7 +174,7 @@ export function evaluate(doc, opts = {}) {
     naOk = isObj(a) && ['human', 'legal'].includes(a.by) && str(a.name) && str(a.basis) && validDate(a.attestedAt) && Date.parse(a.attestedAt) <= nowMs;
   }
 
-  const classes = new Set(arr(doc.classes).filter(str));
+  const classes = new Set(arr(doc.classes).filter(c => typeof c === 'string').map(c => c.trim().toLowerCase()));
   const purposes = new Set(arr(doc.purposes).filter(p => isObj(p) && str(p.text)).map(p => p.id).filter(str));
   const datasets = arr(doc.datasets);
   const dupe = (list, key) => { const c = new Map(); for (const x of list) if (isObj(x) && str(x[key])) c.set(x[key], (c.get(x[key]) || 0) + 1); return new Set([...c].filter(([, n]) => n > 1).map(([k]) => k)); };
@@ -159,7 +192,7 @@ export function evaluate(doc, opts = {}) {
   const R = Object.fromEntries(RULE_IDS.map(id => [id, new Acc(id)]));
   if (arr(doc.purposes).some(p => !str(p.id) || !str(p.text))) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
   if (dupPurposes) R['pdg-purpose.purpose-declared'].raise('fail', '/purposes');
-  const noData = () => { for (const id of RULE_IDS.slice(0, 7)) R[id].raise('not-evaluated', '/datasets'); };
+  const noData = () => { for (const id of RULE_IDS.filter(x => !x.startsWith('pdg-evidence.'))) R[id].raise('not-evaluated', '/datasets'); };
 
   // Exceptions
   const excProblem = x => {
@@ -186,13 +219,17 @@ export function evaluate(doc, opts = {}) {
   });
 
   if (datasets.length === 0) noData();
+  // An unrecognized label in the top-level vocabulary also requires review.
+  if (arr(doc.classes).some(c => labelKind(c) === 'unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', '/classes');
 
   datasets.forEach((d, i) => {
     const at = `/datasets/${i}`;
     if (!isObj(d) || !str(d.id) || !str(d.owner) || !str(d.source) || dupDatasets.has(d.id)) R['pdg-inventory.dataset-declared'].raise('fail', at);
     if (!isObj(d)) return;
     const cls = arr(d.classes);
-    if (cls.length === 0 || !cls.every(c => classes.has(c))) R['pdg-inventory.class-declared'].raise('fail', at);
+    // Normalized matching. A recognized label missing from the vocabulary fails; an unrecognized (or non-string or empty) label is not-evaluated, never a pass.
+    if (cls.length === 0 || cls.some(c => labelKind(c) !== 'unexaminable' && !classes.has(c.trim().toLowerCase()))) R['pdg-inventory.class-declared'].raise('fail', at);
+    else if (cls.some(c => labelKind(c) === 'unexaminable')) R['pdg-inventory.class-declared'].raise('not-evaluated', at);
 
     const dp = arr(d.purposes);
     if (dp.length === 0 || !dp.every(p => purposes.has(p))) R['pdg-purpose.purpose-declared'].raise('fail', at);
@@ -202,6 +239,35 @@ export function evaluate(doc, opts = {}) {
       const refs = isObj(f) ? arr(f.purposeRefs) : [];
       if (!isObj(f) || !str(f.name) || refs.length === 0 || !refs.every(r => dp.includes(r))) R['pdg-purpose.field-use-mapped'].raise('fail', `${at}/fields/${j}`);
     });
+
+    // Proposed basis and risk rules. A personal dataset without the declaration is not-evaluated (REVIEW_REQUIRED), never a pass.
+    // A reference that does not resolve to usable evidence is a fail. Only existence and currency are checked, never legal sufficiency.
+    const kinds = cls.map(labelKind);
+    if (kinds.includes('unexaminable')) for (const id of BASIS_RISK) R[id].raise('not-evaluated', at);
+    if (kinds.includes('personal')) {
+      const good = (ref, ruleId) => { const e = evById.get(ref); return !!e && e.ruleId === ruleId && usable(e, d.id); };
+      const ruleRef = (ruleId, ref, ptr) => {
+        if (ref === undefined) R[ruleId].raise('not-evaluated', ptr);
+        else if (!good(ref, ruleId)) R[ruleId].raise('fail', ptr);
+      };
+      const b = isObj(d.basis) ? d.basis : null, rk = isObj(d.risk) ? d.risk : null;
+      ruleRef('pdg-basis.notice-evidenced', b ? b.noticeRef : undefined, `${at}/basis`);
+      if (b && b.consentRecordRef !== undefined) ruleRef('pdg-basis.consent-record-evidenced', b.consentRecordRef, `${at}/basis`);
+      else if (!b || b.consentNotRelied !== true) R['pdg-basis.consent-record-evidenced'].raise('not-evaluated', `${at}/basis`);
+      const wp = b && isObj(b.withdrawalPath) ? b.withdrawalPath : null;
+      if (!wp) R['pdg-basis.withdrawal-path-evidenced'].raise('not-evaluated', `${at}/basis`);
+      else if (!str(wp.mechanism)) R['pdg-basis.withdrawal-path-evidenced'].raise('fail', `${at}/basis`);
+      else ruleRef('pdg-basis.withdrawal-path-evidenced', wp.testEvidenceRef, `${at}/basis`);
+      ruleRef('pdg-risk.impact-analysis-evidenced', rk ? rk.impactAnalysisRef : undefined, `${at}/risk`);
+      if (!rk || rk.reviewRef === undefined) R['pdg-risk.review-recorded'].raise('not-evaluated', `${at}/risk`);
+      else {
+        const rv = evById.get(rk.reviewRef);
+        if (!(good(rk.reviewRef, 'pdg-risk.review-recorded') && rv.evidence.kind === 'manual' && ['human', 'legal'].includes(rv.producer.kind))) R['pdg-risk.review-recorded'].raise('fail', `${at}/risk`);
+      }
+      const t = rk ? rk.transferRestrictions : undefined;
+      if (!isObj(t)) R['pdg-risk.transfer-restriction-declared'].raise('not-evaluated', `${at}/risk`);
+      else if ((t.declared === true || t.statementRef !== undefined) && !(typeof t.statementRef === 'string' && good(t.statementRef, 'pdg-risk.transfer-restriction-declared'))) R['pdg-risk.transfer-restriction-declared'].raise('fail', `${at}/risk`);
+    }
 
     const ret = d.retention;
     if (!isObj(ret)) {
@@ -230,9 +296,11 @@ export function evaluate(doc, opts = {}) {
   }
   if (naOk !== null) {
     const structural = results.filter(x => x.ruleId.startsWith('pdg-evidence.')).every(x => x.status === 'pass');
+    const classFail = results.some(x => x.ruleId === 'pdg-inventory.class-declared' && x.status === 'fail');
     const contradiction = datasets.length > 0;
-    return { gate0: null, verdict: !structural ? 'FAIL' : !naOk || contradiction ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !contradiction ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.')), limitations: LIMITATIONS, evaluatedAt: now,
-      note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : 'not-applicable on a declared and attested basis' };
+    const unrecognized = arr(doc.classes).some(c => labelKind(c) === 'unexaminable') || datasets.some(d => isObj(d) && arr(d.classes).some(c => labelKind(c) === 'unexaminable'));
+    return { gate0: null, verdict: !structural || classFail ? 'FAIL' : !naOk || contradiction || unrecognized ? 'REVIEW_REQUIRED' : 'NOT_APPLICABLE', results: structural && !classFail && !contradiction && !unrecognized ? [] : results.filter(x => x.ruleId.startsWith('pdg-evidence.') || (classFail && x.ruleId === 'pdg-inventory.class-declared') || (unrecognized && BASIS_RISK.includes(x.ruleId))), limitations: LIMITATIONS, evaluatedAt: now,
+      note: !structural ? 'invalid evidence or exception; not-applicable not accepted' : classFail ? 'class declaration failed; not-applicable not accepted' : !naOk ? 'not-applicable lacks a human attestation' : contradiction ? 'not-applicable contradicts declared datasets' : unrecognized ? 'not-applicable with an unrecognized class label requires review' : 'not-applicable on a declared and attested basis' };
   }
   const verdict = results.some(r => r.status === 'fail') ? 'FAIL'
     : results.some(r => r.status === 'not-evaluated') ? 'REVIEW_REQUIRED' : 'PASS';

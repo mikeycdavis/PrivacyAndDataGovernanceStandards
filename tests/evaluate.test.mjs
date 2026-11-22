@@ -67,8 +67,11 @@ test('inventory: missing owner or source fails; missing classes fails; undeclare
   assert.equal(status(run(d), 'pdg-inventory.dataset-declared'), 'fail');
   d = base(); d.datasets[0].classes = [];
   assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'fail');
-  d = base(); d.datasets[0].classes = ['secret-level-9'];
+  d = base(); d.classes = ['personal']; d.datasets[0].classes = ['personal', 'internal'];
   assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'fail');
+  d = base(); d.datasets[0].classes = ['secret-level-9'];
+  assert.equal(status(run(d), 'pdg-inventory.class-declared'), 'not-evaluated');
+  assert.equal(run(d).verdict, 'REVIEW_REQUIRED');
 });
 test('inventory: no datasets declared is not a pass', () => {
   const d = base(); d.datasets = [];
@@ -199,8 +202,8 @@ test('fixtures contain only obviously synthetic values (reserved domains, no dig
 // ---- Codex review findings (exact head 3526e9f) ----
 const withIndef = (mut) => {
   const d = base(); d.datasets[0].retention.period = 'indefinite';
-  d.evidence.push({ ...structuredClone(d.evidence[1]), id: 'E2' }); mut(d.evidence[2]);
-  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'E2', expiresAt: '2027-01-01T00:00:00Z' }];
+  d.evidence.push({ ...structuredClone(d.evidence[1]), id: 'EX' }); mut(d.evidence[d.evidence.length - 1]);
+  d.exceptions = [{ id: 'X1', ruleId: 'pdg-lifecycle.retention-declared', datasetRef: 'orders', owner: 'o', rationale: 'r', scope: 's', evidenceRef: 'EX', expiresAt: '2027-01-01T00:00:00Z' }];
   return d;
 };
 test('exception evidence must be usable: contradicting, expired, future or other-dataset evidence grants nothing', () => {
@@ -283,7 +286,7 @@ test('not-applicable is not accepted when exceptions or evidence are malformed o
   assert.equal(run(d).verdict, 'NOT_APPLICABLE');
 });
 test('malformed entries in classes, purposes, datasets, fields, evidence or exceptions are refused at gate 0', () => {
-  const muts = [d => d.classes.push({ unknown: true }), d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
+  const muts = [d => d.purposes.push(42), d => d.datasets.push('x'), d => d.datasets[0].fields.push(7),
     d => d.evidence.push(null), d => d.exceptions.push('x')];
   for (const m of muts) { const d = base(); m(d); assert.ok(run(d).gate0); assert.equal(run(d).verdict, null); }
 });
@@ -425,4 +428,144 @@ test('a current contradicting envelope fails its rule even when unreferenced; re
   assert.equal(r.evaluatedAt, NOW);
   const old = base(); const o = structuredClone(old.evidence[0]); o.id = 'E9'; o.result = 'contradicts'; o.validUntil = '2025-02-01T00:00:00Z'; o.retrievedAt = '2025-01-01T00:00:00Z'; old.evidence.push(o);
   assert.equal(run(old).verdict, 'PASS');
+});
+
+// ---- Proposed basis and risk declarations: a missing declaration can never pass ----
+const BR = ['pdg-basis.notice-evidenced', 'pdg-basis.consent-record-evidenced', 'pdg-basis.withdrawal-path-evidenced', 'pdg-risk.impact-analysis-evidenced', 'pdg-risk.review-recorded', 'pdg-risk.transfer-restriction-declared'];
+test('personal dataset with no basis or risk declaration: every basis/risk rule is not-evaluated and the verdict is REVIEW_REQUIRED, never PASS', () => {
+  const d = base(); delete d.datasets[0].basis; delete d.datasets[0].risk;
+  const r = run(d);
+  assert.equal(r.verdict, 'REVIEW_REQUIRED');
+  for (const id of BR) assert.equal(status(r, id), 'not-evaluated', id);
+});
+test('each single missing declaration alone prevents a passing overall verdict', () => {
+  const cuts = [d => delete d.datasets[0].basis.noticeRef, d => { delete d.datasets[0].basis.consentRecordRef; },
+    d => delete d.datasets[0].basis.withdrawalPath, d => delete d.datasets[0].risk.impactAnalysisRef, d => delete d.datasets[0].risk.reviewRef, d => delete d.datasets[0].risk.transferRestrictions];
+  cuts.forEach((cut, i) => {
+    const d = base(); cut(d);
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', `cut ${i}`);
+    assert.equal(status(r, BR[i]), 'not-evaluated', BR[i]);
+  });
+});
+test('a reference that does not resolve to current supporting evidence fails; agent output is never a review', () => {
+  const ev = (d, id) => d.evidence.find(e => e.id === id);
+  for (const mut of [d => { d.datasets[0].basis.noticeRef = 'nope'; }, d => { ev(d, 'N2').validUntil = '2026-11-20T00:00:00Z'; ev(d, 'N2').retrievedAt = '2026-11-01T00:00:00Z'; },
+    d => { ev(d, 'N2').ruleId = 'pdg-basis.consent-record-evidenced'; }, d => { ev(d, 'N2').result = 'inconclusive'; }]) {
+    const d = base(); mut(d);
+    const r = run(d);
+    assert.equal(status(r, 'pdg-basis.notice-evidenced'), 'fail');
+    assert.notEqual(r.verdict, 'PASS');
+  }
+  const a = base(); const e6 = a.evidence.find(e => e.id === 'N6'); e6.surface = 'ingested'; e6.evidence = { kind: 'automated' }; e6.producer = { kind: 'agent', name: 'synthetic-agent', version: '1.0.0' };
+  const r = run(a);
+  assert.equal(status(r, 'pdg-risk.review-recorded'), 'fail');
+  assert.equal(r.verdict, 'FAIL');
+});
+test('transfer restrictions declared false need no statement; declared true needs usable evidence', () => {
+  const a = base(); a.datasets[0].risk.transferRestrictions = { declared: false };
+  assert.equal(run(a).verdict, 'PASS');
+  const b = base(); delete b.datasets[0].risk.transferRestrictions.statementRef;
+  assert.equal(status(run(b), 'pdg-risk.transfer-restriction-declared'), 'fail');
+  const c = base(); c.datasets[0].risk.transferRestrictions = { declared: false, statementRef: 'missing' };
+  assert.equal(status(run(c), 'pdg-risk.transfer-restriction-declared'), 'fail');
+  assert.notEqual(run(c).verdict, 'PASS');
+});
+test('a dataset that declares no personal class is not asked for basis or risk', () => {
+  const d = base(); d.datasets[0].classes = ['internal']; delete d.datasets[0].basis; delete d.datasets[0].risk;
+  const r = run(d);
+  for (const id of BR) assert.equal(status(r, id), 'pass', id);
+});
+test('gate 0: malformed or unknown basis/risk fields are refused without echoing them', () => {
+  for (const mut of [d => { d.datasets[0].basis.surprise = 'SECRET-VALUE'; }, d => { d.datasets[0].basis = []; }, d => { d.datasets[0].risk.transferRestrictions.declared = 'yes'; }, d => { d.datasets[0].basis.overlays = [1]; }]) {
+    const d = base(); mut(d);
+    const r = run(d);
+    assert.ok(r.gate0);
+    assert.equal(r.verdict, null);
+    assert.ok(!JSON.stringify(r).includes('SECRET-VALUE') && !JSON.stringify(r).includes('surprise'));
+  }
+});
+
+test('a basis.kind label alone never waives the consent evidence; only an explicit consentNotRelied declaration does', () => {
+  const a = base(); delete a.datasets[0].basis.consentRecordRef; a.datasets[0].basis.kind = 'consent';
+  assert.equal(status(run(a), 'pdg-basis.consent-record-evidenced'), 'not-evaluated');
+  assert.equal(run(a).verdict, 'REVIEW_REQUIRED');
+  const b = base(); delete b.datasets[0].basis.consentRecordRef; b.datasets[0].basis.consentNotRelied = true;
+  assert.equal(status(run(b), 'pdg-basis.consent-record-evidenced'), 'pass');
+  const c = base(); c.datasets[0].basis.consentNotRelied = 'yes';
+  assert.ok(run(c).gate0);
+});
+test('personal label: case/space variants trigger the rules; any unexaminable label (invisible, combining, lookalike, inner space) is not-evaluated, never PASS', () => {
+  const u = n => String.fromCharCode(n);
+  const labels = ['Personal', ' PERSONAL ', 'pers' + u(0x200b) + 'onal', 'personal' + u(0), u(0xff30) + 'ERSONAL', 'pers' + u(0xfe0f) + 'onal', 'pers' + u(0x34f) + 'onal', 'pers' + u(0x3164) + 'onal', 'pers' + u(0x2028) + 'onal',
+    'p' + u(0x435) + 'rsonal', u(0x1d18) + 'ersonal', 'per sonal', 'personal' + u(0x307)];
+  for (const label of labels) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    const r = run(d);
+    assert.notEqual(r.verdict, 'PASS', JSON.stringify(label));
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', JSON.stringify(label));
+  }
+});
+test('unrecognized class labels (pii, personal-data, ...) require review and can never pass; public and internal remain recognized', () => {
+  for (const label of ['pii', 'personal-data', 'personal_data', 'person', 'special-category', 'sensitive', 'PII', 'confidential']) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', label);
+    for (const id of BR) assert.equal(status(r, id), 'not-evaluated', label + ' ' + id);
+    const withDecl = base(); withDecl.classes = [label]; withDecl.datasets[0].classes = [label];
+    assert.equal(run(withDecl).verdict, 'REVIEW_REQUIRED', label + ' with declarations still needs review');
+  }
+  for (const label of ['public', 'internal', ' Public ']) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    assert.equal(run(d).verdict, 'PASS', label);
+  }
+  const mixed = base(); mixed.classes = ['personal', 'pii']; mixed.datasets[0].classes = ['personal', 'pii'];
+  assert.equal(run(mixed).verdict, 'REVIEW_REQUIRED');
+});
+test('an unrecognized label in the top-level classes vocabulary also prevents a pass', () => {
+  for (const label of ['pii', '', 'personal-data']) {
+    const d = base(); d.classes.push(label);
+    const r = run(d);
+    assert.notEqual(r.verdict, 'PASS', JSON.stringify(label));
+    for (const id of BR) assert.equal(status(r, id), 'not-evaluated', id);
+  }
+  const e = base(); e.datasets = []; e.classes = ['pii'];
+  assert.notEqual(run(e).verdict, 'PASS');
+});
+test('an attested not-applicable claim cannot hide an unrecognized class label: REVIEW_REQUIRED, never NOT_APPLICABLE', () => {
+  for (const label of ['pii', '', 'personal-data']) {
+    const d = { schema: base().schema, applicability: { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } }, classes: [label], datasets: [], evidence: [], exceptions: [] };
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', JSON.stringify(label));
+  }
+  const ok = { schema: base().schema, applicability: { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } }, classes: ['public'], datasets: [], evidence: [], exceptions: [] };
+  assert.equal(run(ok).verdict, 'NOT_APPLICABLE');
+});
+test('non-string, empty and case-mismatched class labels: review or normalized match, never a pass and never a refusal', () => {
+  for (const bad of [null, 42, {}, [], true, '']) {
+    const top = base(); top.classes.push(bad);
+    const a = run(top); assert.equal(a.gate0, null); assert.equal(a.verdict, 'REVIEW_REQUIRED');
+    const ds = base(); ds.classes.push(bad); ds.datasets[0].classes.push(bad);
+    const b = run(ds); assert.equal(b.gate0, null); assert.equal(b.verdict, 'REVIEW_REQUIRED', JSON.stringify(bad));
+    const only = base(); only.datasets[0].classes = [bad];
+    assert.equal(run(only).verdict, 'REVIEW_REQUIRED', JSON.stringify(bad));
+    assert.ok(!JSON.stringify(a).includes('unknown'));
+  }
+  const m = base(); m.datasets[0].classes = [' PERSONAL ', 'Public'];
+  assert.equal(run(m).verdict, 'PASS');
+  const n = base(); n.classes = ['Personal', ' PUBLIC ']; n.datasets[0].classes = ['personal', 'public'];
+  assert.equal(run(n).verdict, 'PASS');
+});
+test('an attested not-applicable claim does not suppress a failing class declaration', () => {
+  const d = base(); d.classes = ['public']; d.datasets[0].classes = ['personal'];
+  d.applicability = { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } };
+  const r = run(d);
+  assert.equal(r.verdict, 'FAIL');
+  assert.equal(status(r, 'pdg-inventory.class-declared'), 'fail');
+});
+test('undeclared applicability keeps INDETERMINATE (never PASS) even with an unrecognized label', () => {
+  const d = base(); delete d.applicability; d.classes.push('pii');
+  const r = run(d);
+  assert.equal(r.verdict, 'INDETERMINATE');
+  assert.notEqual(r.verdict, 'PASS');
 });
