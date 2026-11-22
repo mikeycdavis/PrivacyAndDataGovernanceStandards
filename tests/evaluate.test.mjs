@@ -503,3 +503,19 @@ test('personal label: case/space variants trigger the rules; any unexaminable la
     assert.equal(r.verdict, 'REVIEW_REQUIRED', JSON.stringify(label));
   }
 });
+test('unrecognized class labels (pii, personal-data, ...) require review and can never pass; public and internal remain recognized', () => {
+  for (const label of ['pii', 'personal-data', 'personal_data', 'person', 'special-category', 'sensitive', 'PII', 'confidential']) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    const r = run(d);
+    assert.equal(r.verdict, 'REVIEW_REQUIRED', label);
+    for (const id of BR) assert.equal(status(r, id), 'not-evaluated', label + ' ' + id);
+    const withDecl = base(); withDecl.classes = [label]; withDecl.datasets[0].classes = [label];
+    assert.equal(run(withDecl).verdict, 'REVIEW_REQUIRED', label + ' with declarations still needs review');
+  }
+  for (const label of ['public', 'internal', ' Public ']) {
+    const d = base(); d.classes = [label]; d.datasets[0].classes = [label]; delete d.datasets[0].basis; delete d.datasets[0].risk;
+    assert.equal(run(d).verdict, 'PASS', label);
+  }
+  const mixed = base(); mixed.classes = ['personal', 'pii']; mixed.datasets[0].classes = ['personal', 'pii'];
+  assert.equal(run(mixed).verdict, 'REVIEW_REQUIRED');
+});

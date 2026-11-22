@@ -128,9 +128,10 @@ function shapeProblem(d) {
   return null;
 }
 
-// Class labels: after trim and lower-casing, exactly 'personal' triggers the basis/risk rules. A label with any character outside [a-z0-9_.-]
-// (invisible, combining, lookalike or non-ASCII characters, inner spaces) cannot be examined reliably, so it is treated as unexaminable and the rules are not-evaluated (fail closed).
-const labelKind = c => { const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : /^[a-z0-9_.-]*$/.test(t) ? 'other' : 'unexaminable'; };
+// Class labels: the contract recognises exactly public, internal and personal (trimmed, lower-cased); personal is the canonical classification and no alias is defined.
+// Any other label (pii, personal-data, invisible, combining, lookalike or non-ASCII spellings) is unrecognized and makes the basis/risk rules not-evaluated (REVIEW_REQUIRED), never a pass.
+const KNOWN_LABELS = ['public', 'internal'];
+const labelKind = c => { const t = c.trim().toLowerCase(); return t === 'personal' ? 'personal' : KNOWN_LABELS.includes(t) ? 'other' : 'unexaminable'; };
 
 function arr(v) { return Array.isArray(v) ? v : []; }
 
