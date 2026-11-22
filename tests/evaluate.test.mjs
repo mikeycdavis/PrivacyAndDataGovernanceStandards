@@ -556,3 +556,16 @@ test('non-string, empty and case-mismatched class labels: review or normalized m
   const n = base(); n.classes = ['Personal', ' PUBLIC ']; n.datasets[0].classes = ['personal', 'public'];
   assert.equal(run(n).verdict, 'PASS');
 });
+test('an attested not-applicable claim does not suppress a failing class declaration', () => {
+  const d = base(); d.classes = ['public']; d.datasets[0].classes = ['personal'];
+  d.applicability = { declared: false, attestation: { by: 'human', name: 'synthetic-owner', basis: 'synthetic basis', attestedAt: '2026-11-01T00:00:00Z' } };
+  const r = run(d);
+  assert.equal(r.verdict, 'FAIL');
+  assert.equal(status(r, 'pdg-inventory.class-declared'), 'fail');
+});
+test('undeclared applicability keeps INDETERMINATE (never PASS) even with an unrecognized label', () => {
+  const d = base(); delete d.applicability; d.classes.push('pii');
+  const r = run(d);
+  assert.equal(r.verdict, 'INDETERMINATE');
+  assert.notEqual(r.verdict, 'PASS');
+});
